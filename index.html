@@ -42,7 +42,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Weather Outlook - Wimauma, FL</title>
+    <title>Weather Outlook</title>
     <style>
         body {
             font-family: system-ui, -apple-system, sans-serif;
@@ -56,29 +56,24 @@
             text-align: center;
             color: #007bff;
         }
-        #location {
-            text-align: center;
-            font-style: italic;
-            margin-bottom: 20px;
-        }
         .days {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
             gap: 20px;
+            position: relative;
         }
         .day {
-            background: white;
             border-radius: 10px;
             padding: 20px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
-        .day:nth-child(1) {
+        .day1 {
             background: linear-gradient(135deg, #e6f0fa 0%, #d1e3f6 100%);
         }
-        .day:nth-child(2) {
+        .day2 {
             background: linear-gradient(135deg, #e8f5e9 0%, #d4e8d9 100%);
         }
-        .day:nth-child(3) {
+        .day3 {
             background: linear-gradient(135deg, #f3e8ff 0%, #e0d4f2 100%);
         }
         .day h2 {
@@ -106,6 +101,7 @@
         .rain {
             font-size: 0.9em;
             color: #555;
+            font-weight: bold;
         }
         .hidden {
             display: none;
@@ -131,14 +127,34 @@
             border-radius: 5px;
             cursor: pointer;
         }
+        .loader {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #007bff;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            z-index: 10;
+        }
+        @keyframes spin {
+            0% { transform: translate(-50%, -50%) rotate(0deg); }
+            100% { transform: translate(-50%, -50%) rotate(360deg); }
+        }
+        .loading .day {
+            opacity: 0.3;
+        }
     </style>
 </head>
 <body>
     <h1>Weather Outlook</h1>
-    <div id="location">Wimauma, Florida</div>
     <div id="error" class="error"></div>
-    <div class="days">
-        <div class="day">
+    <div class="days" id="days">
+        <div class="loader" id="loader"></div>
+        <div class="day day1">
             <h2 id="day1_name">Today</h2>
             <p class="high">High: <span id="day1_high"></span>°F</p>
             <div id="day1_morning" class="period">
@@ -157,7 +173,7 @@
                 <span id="day1_evening_rain" class="rain"></span>
             </div>
         </div>
-        <div class="day">
+        <div class="day day2">
             <h2 id="day2_name">Tomorrow</h2>
             <p class="high">High: <span id="day2_high"></span>°F</p>
             <div id="day2_morning" class="period">
@@ -176,7 +192,7 @@
                 <span id="day2_evening_rain" class="rain"></span>
             </div>
         </div>
-        <div class="day">
+        <div class="day day3">
             <h2 id="day3_name">Day After</h2>
             <p class="high">High: <span id="day3_high"></span>°F</p>
             <div id="day3_morning" class="period">
@@ -246,12 +262,21 @@
             const lon = -82.2987;
             const url = `https://api.weatherapi.com/v1/forecast.json?key=${API_KEY}&q=${lat},${lon}&days=3&aqi=no&alerts=no`;
 
+            // Show loader
+            const daysEl = document.getElementById('days');
+            const loaderEl = document.getElementById('loader');
+            daysEl.classList.add('loading');
+
             fetch(url)
                 .then(res => {
                     if (!res.ok) throw new Error('API request failed');
                     return res.json();
                 })
                 .then(data => {
+                    // Hide loader
+                    daysEl.classList.remove('loading');
+                    loaderEl.classList.add('hidden');
+
                     const now = new Date();
                     const today = new Date(now);
                     const tomorrow = new Date(now);
@@ -328,6 +353,9 @@
                     });
                 })
                 .catch(err => {
+                    // Hide loader on error
+                    daysEl.classList.remove('loading');
+                    loaderEl.classList.add('hidden');
                     console.error(err);
                     document.getElementById('error').textContent = 'Failed to load weather data. Please try again later.';
                 });
