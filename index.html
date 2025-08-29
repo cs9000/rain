@@ -119,7 +119,7 @@
         }
         #debug-toggle {
             display: block;
-            margin: 10px auto;
+            margin: 20px auto;
             padding: 10px;
             background: #007bff;
             color: white;
@@ -212,7 +212,7 @@
             </div>
         </div>
     </div>
-    <button id="debug-toggle">Show Debug Info</button>
+    <button id="debug-toggle">See Details</button>
     <div id="debug" class="hidden"></div>
 
     <script>
@@ -365,7 +365,7 @@
         document.getElementById('debug-toggle').addEventListener('click', () => {
             const debug = document.getElementById('debug');
             debug.classList.toggle('hidden');
-            document.getElementById('debug-toggle').textContent = debug.classList.contains('hidden') ? 'Show Debug Info' : 'Hide Debug Info';
+            document.getElementById('debug-toggle').textContent = debug.classList.contains('hidden') ? 'See Details' : 'Hide Details';
         });
 
         // Load weather for Wimauma, FL immediately
