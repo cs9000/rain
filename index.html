@@ -220,8 +220,10 @@
             return date.toISOString().slice(0, 10);
         }
 
-        function getDayName(date) {
-            return date.toLocaleString('en-US', { weekday: 'long' });
+        function getDayName(dateStr) {
+            const [year, month, day] = dateStr.split('-').map(Number);
+            const date = new Date(year, month - 1, day);
+            return date.toLocaleString('en-US', { timeZone: 'America/New_York', weekday: 'long' });
         }
 
         function processPeriod(indices, precip, pop, conditions, prefix) {
@@ -269,59 +271,59 @@
 
             fetch(url)
                 .then(res => {
-                    if (!res.ok) throw new Error('API request failed');
+                    if (!res.ok) {
+                        console.error('Fetch error:', res.status, res.statusText);
+                        throw new Error(`API request failed: ${res.status} ${res.statusText}`);
+                    }
                     return res.json();
                 })
                 .then(data => {
+                    console.log('Raw API response:', data);
+                    if (!data.forecast || !data.forecast.forecastday || !data.location || !data.location.localtime) {
+                        console.error('Invalid API response structure:', data);
+                        throw new Error('Invalid API response structure');
+                    }
+
                     // Hide loader
                     daysEl.classList.remove('loading');
                     loaderEl.classList.add('hidden');
 
-                    const now = new Date();
-                    const today = new Date(now);
-                    const tomorrow = new Date(now);
-                    tomorrow.setDate(tomorrow.getDate() + 1);
-                    const dayAfter = new Date(now);
-                    dayAfter.setDate(dayAfter.getDate() + 2);
-
-                    const todayStr = formatDate(today);
-                    const tomorrowStr = formatDate(tomorrow);
-                    const dayAfterStr = formatDate(dayAfter);
-
                     const daysData = data.forecast.forecastday;
-                    const currentHour = now.getHours();
+                    console.log('API daysData:', daysData.map(d => d.date));
+                    if (!daysData || daysData.length < 3) {
+                        document.getElementById('error').textContent = 'Insufficient forecast data from API';
+                        console.error('API returned insufficient days:', daysData);
+                        return;
+                    }
 
-                    // Debug info
-                    let debugInfo = '<h3>Raw API Data</h3>';
-                    daysData.forEach((day, idx) => {
-                        debugInfo += `<p><strong>${idx === 0 ? 'Today' : idx === 1 ? 'Tomorrow' : getDayName(dayAfter)} (${day.date})</strong></p>`;
-                        debugInfo += `<p>Max Temp: ${day.day.maxtemp_f}°F</p>`;
-                        debugInfo += '<ul>';
-                        day.hour.forEach(h => {
-                            const hourTime = new Date(h.time);
-                            if (hourTime.toISOString().slice(0, 10) >= todayStr) {
-                                debugInfo += `<li>${h.time}: ${h.chance_of_rain}% rain, ${h.precip_in} in, Condition: ${h.condition.text}</li>`;
-                            }
-                        });
-                        debugInfo += '</ul>';
+                    const localtime = new Date(data.location.localtime);
+                    const currentHour = localtime.getHours();
+                    const currentDayStr = formatDate(localtime);
+                    console.log('Current date:', currentDayStr, 'Current hour:', currentHour, 'Localtime:', data.location.localtime);
+
+                    // Debug day names
+                    console.log('Parsed day names:', {
+                        day1: getDayName(daysData[0]?.date),
+                        day2: getDayName(daysData[1]?.date),
+                        day3: getDayName(daysData[2]?.date)
                     });
-                    document.getElementById('debug').innerHTML = debugInfo;
 
                     const days = [
-                        { str: todayStr, prefix: 'day1', index: 0 },
-                        { str: tomorrowStr, prefix: 'day2', index: 1 },
-                        { str: dayAfterStr, prefix: 'day3', index: 2 }
+                        { date: daysData[0]?.date, prefix: 'day1', index: 0, name: 'Today' },
+                        { date: daysData[1]?.date, prefix: 'day2', index: 1, name: 'Tomorrow' },
+                        { date: daysData[2]?.date, prefix: 'day3', index: 2, name: getDayName(daysData[2]?.date) }
                     ];
+                    console.log('Days array:', days.map(d => ({ name: d.name, date: d.date })));
 
                     days.forEach(day => {
                         const dayData = daysData[day.index];
                         if (!dayData) {
-                            document.getElementById('error').textContent = `No data for ${day.str}`;
+                            document.getElementById('error').textContent = `No data for ${day.date}`;
                             return;
                         }
 
                         // Set day names and highs
-                        document.getElementById(`${day.prefix}_name`).textContent = day.index === 0 ? 'Today' : day.index === 1 ? 'Tomorrow' : getDayName(dayAfter);
+                        document.getElementById(`${day.prefix}_name`).textContent = day.name;
                         const highTemp = dayData.day.maxtemp_f;
                         document.getElementById(`${day.prefix}_high`).textContent = isNaN(highTemp) ? 'N/A' : Math.round(highTemp);
 
@@ -330,18 +332,28 @@
                         let afternoonIdx = [];
                         let eveningIdx = [];
 
+                        // Debug indices for each period
+                        let debugInfo = `<p><strong>Indices for ${day.name} (${day.date})</strong></p>`;
                         hourly.forEach((h, i) => {
                             const hourTime = new Date(h.time);
-                            if (hourTime.toISOString().slice(0, 10) === day.str) {
+                            const hourDateStr = formatDate(hourTime);
+                            if (hourDateStr === day.date) {
                                 const hour = hourTime.getHours();
-                                const isCurrentDay = day.str === todayStr;
-                                if (isCurrentDay && hour < currentHour) return; // Skip past hours on current day
+                                if (day.index === 0 && hour < currentHour) return; // Skip past hours on current day
 
-                                if (hour >= 6 && hour < 12) morningIdx.push(i);
-                                else if (hour >= 12 && hour < 18) afternoonIdx.push(i);
-                                else if (hour >= 18 && hour < 24) eveningIdx.push(i);
+                                if (hour >= 6 && hour < 12) {
+                                    morningIdx.push(i);
+                                } else if (hour >= 12 && hour < 18) {
+                                    afternoonIdx.push(i);
+                                } else if (hour >= 18 && hour < 24) {
+                                    eveningIdx.push(i);
+                                }
                             }
                         });
+
+                        debugInfo += `<p>Morning Indices: [${morningIdx.join(', ')}]</p>`;
+                        debugInfo += `<p>Afternoon Indices: [${afternoonIdx.join(', ')}]</p>`;
+                        debugInfo += `<p>Evening Indices: [${eveningIdx.join(', ')}]</p>`;
 
                         const precip = hourly.map(h => h.precip_in);
                         const pop = hourly.map(h => h.chance_of_rain);
@@ -350,13 +362,30 @@
                         processPeriod(morningIdx, precip, pop, conditions, `${day.prefix}_morning`);
                         processPeriod(afternoonIdx, precip, pop, conditions, `${day.prefix}_afternoon`);
                         processPeriod(eveningIdx, precip, pop, conditions, `${day.prefix}_evening`);
+
+                        // Append to debug info
+                        document.getElementById('debug').innerHTML += debugInfo;
                     });
+
+                    // Debug info for raw API data
+                    let debugInfo = '<h3>Raw API Data</h3>';
+                    daysData.forEach((day, idx) => {
+                        const dayName = idx === 0 ? 'Today' : idx === 1 ? 'Tomorrow' : getDayName(day.date);
+                        debugInfo += `<p><strong>${dayName} (${day.date})</strong></p>`;
+                        debugInfo += `<p>Max Temp: ${day.day.maxtemp_f}°F</p>`;
+                        debugInfo += '<ul>';
+                        day.hour.forEach(h => {
+                            debugInfo += `<li>${h.time}: ${h.chance_of_rain}% rain, ${h.precip_in} in, Condition: ${h.condition.text}</li>`;
+                        });
+                        debugInfo += '</ul>';
+                    });
+                    document.getElementById('debug').innerHTML = debugInfo + document.getElementById('debug').innerHTML;
                 })
                 .catch(err => {
                     // Hide loader on error
                     daysEl.classList.remove('loading');
                     loaderEl.classList.add('hidden');
-                    console.error(err);
+                    console.error('Fetch error:', err);
                     document.getElementById('error').textContent = 'Failed to load weather data. Please try again later.';
                 });
         }
