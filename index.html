@@ -98,6 +98,9 @@
             font-size: 2em;
             margin-right: 10px;
         }
+        .grayscale {
+            filter: grayscale(100%);
+        }
         .rain {
             font-size: 0.9em;
             color: #555;
@@ -250,11 +253,18 @@
             });
 
             const isRainy = hasRainText || maxPop >= 10 || totalPrecip >= 0.001;
-            iconEl.textContent = isRainy ? '🌧️' : '☀️';
+            const isEvening = prefix.endsWith('_evening');
+            iconEl.textContent = isRainy ? '🌧️' : (isEvening ? '🌕' : '☀️');
             if (isRainy) {
                 rainEl.textContent = `${maxPop}% chance, ${totalPrecip.toFixed(2)} in`;
+                iconEl.classList.remove('grayscale');
             } else {
                 rainEl.textContent = '';
+                if (isEvening) {
+                    iconEl.classList.add('grayscale');
+                } else {
+                    iconEl.classList.remove('grayscale');
+                }
             }
             periodDiv.classList.remove('hidden');
         }
@@ -358,7 +368,7 @@
                         // Debug indices for each period
                         debugInfo += `<p><strong>Indices for ${day.name} (${day.date})</strong></p>`;
                         hourly.forEach((h, i) => {
-                            const hourTime = new Date(h.time + ' EDT'); // Explicitly set EDT
+                            const hourTime = new Date(h.time + ' EDT');
                             const hourDateStr = formatDate(hourTime);
                             const hour = hourTime.getHours();
                             console.log(`Hour ${i}: rawTime=${h.time}, parsedTime=${hourTime}, hour=${hour}, date=${hourDateStr}, matches day=${day.date}`);
@@ -381,8 +391,12 @@
 
                         // Fallback for today's evening if empty
                         if (day.index === 0 && eveningIdx.length === 0 && currentHour >= 18) {
-                            console.log(`Forcing evening indices for today: [${hourly.findIndex(h => h.time.includes('22:00'))}, ${hourly.findIndex(h => h.time.includes('23:00'))}]`);
+                            console.log(`Forcing evening indices for today: [${hourly.findIndex(h => h.time.includes('18:00'))}, ${hourly.findIndex(h => h.time.includes('19:00'))}, ${hourly.findIndex(h => h.time.includes('20:00'))}, ${hourly.findIndex(h => h.time.includes('21:00'))}, ${hourly.findIndex(h => h.time.includes('22:00'))}, ${hourly.findIndex(h => h.time.includes('23:00'))}]`);
                             eveningIdx = [
+                                hourly.findIndex(h => h.time.includes('18:00')),
+                                hourly.findIndex(h => h.time.includes('19:00')),
+                                hourly.findIndex(h => h.time.includes('20:00')),
+                                hourly.findIndex(h => h.time.includes('21:00')),
                                 hourly.findIndex(h => h.time.includes('22:00')),
                                 hourly.findIndex(h => h.time.includes('23:00'))
                             ].filter(i => i !== -1);
