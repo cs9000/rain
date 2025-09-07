@@ -1,441 +1,235 @@
-<script type="text/javascript">
-        var gk_isXlsx = false;
-        var gk_xlsxFileLookup = {};
-        var gk_fileData = {};
-        function filledCell(cell) {
-          return cell !== '' && cell != null;
-        }
-        function loadFileData(filename) {
-        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
-            try {
-                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
-                var firstSheetName = workbook.SheetNames[0];
-                var worksheet = workbook.Sheets[firstSheetName];
-
-                // Convert sheet to JSON to filter blank rows
-                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
-                // Filter out blank rows (rows where all cells are empty, null, or undefined)
-                var filteredData = jsonData.filter(row => row.some(filledCell));
-
-                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
-                var headerRowIndex = filteredData.findIndex((row, index) =>
-                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
-                );
-                // Fallback
-                if (headerRowIndex === -1 || headerRowIndex > 25) {
-                  headerRowIndex = 0;
-                }
-
-                // Convert filtered JSON back to CSV
-                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
-                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
-                return csv;
-            } catch (e) {
-                console.error(e);
-                return "";
-            }
-        }
-        return gk_fileData[filename] || "";
-        }
-        </script><!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Weather Outlook</title>
+    <title>Wimauma Weather</title>
+    <!-- Chosen Palette: Cool Tones (Blue, Green, Purple) -->
+    <!-- Application Structure Plan: A single-view SPA with a primary display of three forecast cards for quick outlooks. A secondary, toggleable "details" view provides a deeper dive into hourly data. This structure prioritizes at-a-ance information first, with an intuitive action (button click) to reveal more complex data, preventing initial cognitive overload for the user. The user flow is simple: view summary -> click for details -> click to hide details. This was chosen for its clarity and common use in dashboard-style applications. -->
+    <!-- Visualization & Content Choices: Report Info: Daily forecast summary -> Goal: Quick overview -> Viz/Presentation: Three distinct, color-coded summary cards -> Interaction: None, purely informational -> Justification: Cards provide a scannable, high-level summary. Report Info: Hourly forecast data -> Goal: Detailed planning -> Viz/Presentation: Tabular data -> Interaction: "See/Hide Details" button toggles visibility -> Justification: A table is the clearest way to present dense, structured hourly data. Library/Method: Vanilla JS for DOM manipulation and API fetching. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body {
-            font-family: system-ui, -apple-system, sans-serif;
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 20px;
-            background: #f8f9fa;
-            color: #333;
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8;
         }
-        h1 {
-            text-align: center;
-            color: #007bff;
+        .weather-card {
+            transition: all 0.3s ease-in-out;
+            animation: fadeIn 0.8s ease-in-out;
         }
-        .days {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 20px;
-            position: relative;
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
         }
-        .day {
-            border-radius: 10px;
-            padding: 20px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        .day1 {
-            background: linear-gradient(135deg, #e6f0fa 0%, #d1e3f6 100%);
-        }
-        .day2 {
-            background: linear-gradient(135deg, #e8f5e9 0%, #d4e8d9 100%);
-        }
-        .day3 {
-            background: linear-gradient(135deg, #f3e8ff 0%, #e0d4f2 100%);
-        }
-        .day h2 {
-            margin-top: 0;
-            color: #007bff;
-        }
-        .high {
-            font-weight: bold;
-            margin-bottom: 20px;
-        }
-        .period {
-            display: flex;
-            align-items: center;
-            margin-bottom: 10px;
-        }
-        .period h3 {
-            flex: 1;
-            margin: 0;
-            font-size: 1em;
-        }
-        .icon {
-            font-size: 2em;
-            margin-right: 10px;
-        }
-        .grayscale {
-            filter: grayscale(100%);
-        }
-        .rain {
-            font-size: 0.9em;
-            color: #555;
-            font-weight: bold;
-        }
-        .hidden {
-            display: none;
-        }
-        .error {
-            text-align: center;
-            color: #dc3545;
-        }
-        #debug {
-            margin-top: 20px;
-            background: white;
-            border-radius: 10px;
-            padding: 20px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        #debug-toggle {
-            display: block;
-            margin: 20px auto;
-            padding: 10px;
-            background: #007bff;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-        }
-        .loader {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #007bff;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-            z-index: 10;
-        }
-        @keyframes spin {
-            0% { transform: translate(-50%, -50%) rotate(0deg); }
-            100% { transform: translate(-50%, -50%) rotate(360deg); }
-        }
-        .loading .day {
-            opacity: 0.3;
+        .details-table-day {
+            animation: fadeIn 0.5s ease-in-out;
         }
     </style>
 </head>
-<body>
-    <h1>Weather Outlook</h1>
-    <div id="error" class="error"></div>
-    <div class="days" id="days">
-        <div class="loader" id="loader"></div>
-        <div class="day day1">
-            <h2 id="day1_name">Today</h2>
-            <p class="high">High: <span id="day1_high"></span>°F</p>
-            <div id="day1_morning" class="period">
-                <h3>Morning</h3>
-                <span id="day1_morning_icon" class="icon"></span>
-                <span id="day1_morning_rain" class="rain"></span>
+<body class="flex items-center justify-center min-h-screen p-4 sm:p-8">
+
+    <main class="w-full max-w-4xl p-6 space-y-6 bg-white rounded-3xl shadow-2xl">
+        <header class="text-center">
+            <h1 class="text-3xl font-extrabold text-gray-800">Wimauma Weather</h1>
+        </header>
+
+        <section id="weather-cards" class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div id="loading-spinner" class-="col-span-1 md:col-span-3 text-center p-8">
+                <div class="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]" role="status">
+                    <span class="!absolute !-m-px !h-px !w-px !overflow-hidden !whitespace-nowrap !border-0 !p-0 ![clip:rect(0,0,0,0)]">Loading...</span>
+                </div>
+                <p class="mt-4 text-gray-500">Loading weather data...</p>
             </div>
-            <div id="day1_afternoon" class="period">
-                <h3>Afternoon</h3>
-                <span id="day1_afternoon_icon" class="icon"></span>
-                <span id="day1_afternoon_rain" class="rain"></span>
-            </div>
-            <div id="day1_evening" class="period">
-                <h3>Evening</h3>
-                <span id="day1_evening_icon" class="icon"></span>
-                <span id="day1_evening_rain" class="rain"></span>
+        </section>
+
+        <div class="text-center mt-6">
+            <button id="toggle-details-btn" class="py-3 px-8 bg-blue-500 text-white font-bold rounded-full shadow-lg hover:bg-blue-600 transition-colors transform hover:scale-105">
+                See Details
+            </button>
+        </div>
+
+        <section id="details-table-container" class="mt-8 transition-all duration-500 hidden">
+        </section>
+
+        <div id="message-box" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden flex items-center justify-center p-4">
+            <div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-sm text-center">
+                <h3 class="text-xl font-bold mb-4" id="message-title"></h3>
+                <p class="text-gray-600 mb-6" id="message-content"></p>
+                <button onclick="hideMessage()" class="py-2 px-6 bg-blue-500 text-white font-semibold rounded-full hover:bg-blue-600 transition-colors">
+                    Close
+                </button>
             </div>
         </div>
-        <div class="day day2">
-            <h2 id="day2_name">Tomorrow</h2>
-            <p class="high">High: <span id="day2_high"></span>°F</p>
-            <div id="day2_morning" class="period">
-                <h3>Morning</h3>
-                <span id="day2_morning_icon" class="icon"></span>
-                <span id="day2_morning_rain" class="rain"></span>
-            </div>
-            <div id="day2_afternoon" class="period">
-                <h3>Afternoon</h3>
-                <span id="day2_afternoon_icon" class="icon"></span>
-                <span id="day2_afternoon_rain" class="rain"></span>
-            </div>
-            <div id="day2_evening" class="period">
-                <h3>Evening</h3>
-                <span id="day2_evening_icon" class="icon"></span>
-                <span id="day2_evening_rain" class="rain"></span>
-            </div>
-        </div>
-        <div class="day day3">
-            <h2 id="day3_name">Day After</h2>
-            <p class="high">High: <span id="day3_high"></span>°F</p>
-            <div id="day3_morning" class="period">
-                <h3>Morning</h3>
-                <span id="day3_morning_icon" class="icon"></span>
-                <span id="day3_morning_rain" class="rain"></span>
-            </div>
-            <div id="day3_afternoon" class="period">
-                <h3>Afternoon</h3>
-                <span id="day3_afternoon_icon" class="icon"></span>
-                <span id="day3_afternoon_rain" class="rain"></span>
-            </div>
-            <div id="day3_evening" class="period">
-                <h3>Evening</h3>
-                <span id="day3_evening_icon" class="icon"></span>
-                <span id="day3_evening_rain" class="rain"></span>
-            </div>
-        </div>
-    </div>
-    <button id="debug-toggle">See Details</button>
-    <div id="debug" class="hidden"></div>
+    </main>
 
     <script>
-        function formatDate(date) {
-            return date.toISOString().slice(0, 10);
+        let correctForecastData = null;
+
+        function showMessage(title, content) {
+            document.getElementById('message-title').textContent = title;
+            document.getElementById('message-content').textContent = content;
+            document.getElementById('message-box').classList.remove('hidden');
         }
 
-        function getDayName(dateStr) {
-            const [year, month, day] = dateStr.split('-').map(Number);
-            const date = new Date(year, month - 1, day);
-            return date.toLocaleString('en-US', { timeZone: 'America/New_York', weekday: 'long' });
+        function hideMessage() {
+            document.getElementById('message-box').classList.add('hidden');
         }
-
-        function processPeriod(indices, precip, pop, conditions, prefix) {
-            const periodDiv = document.getElementById(prefix);
-            const iconEl = document.getElementById(prefix + '_icon');
-            const rainEl = document.getElementById(prefix + '_rain');
-
-            if (indices.length === 0) {
-                periodDiv.classList.add('hidden');
-                return;
-            }
-
-            let totalPrecip = 0;
-            let maxPop = 0;
-            let hasRainText = false;
-            indices.forEach(i => {
-                totalPrecip += precip[i] || 0;
-                if (pop[i] > maxPop) maxPop = pop[i] || 0;
-                const conditionText = conditions[i]?.text?.toLowerCase() || '';
-                if (conditionText.includes('rain') || conditionText.includes('shower') || 
-                    conditionText.includes('thunder') || conditionText.includes('drizzle')) {
-                    hasRainText = true;
+        
+        function calculateRainfall(hourlyData, startHour, endHour) {
+            let totalRain = 0;
+            for (let i = startHour; i <= endHour; i++) {
+                if (hourlyData[i]) {
+                    totalRain += hourlyData[i].precip_in;
                 }
+            }
+            return totalRain > 0 ? ` (${totalRain.toFixed(1)} in)` : '';
+        }
+
+        function renderDetailsTables() {
+            const container = document.getElementById('details-table-container');
+            container.innerHTML = ''; 
+            
+            if (!correctForecastData) return;
+
+            correctForecastData.forEach((day) => {
+                const dayOfWeek = new Date(day.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long' });
+
+                const daySectionHtml = `
+                    <div class="mb-8 details-table-day">
+                        <h3 class="text-xl font-bold text-gray-800 mb-4">${dayOfWeek}</h3>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left bg-white rounded-xl shadow-md">
+                                <thead class="bg-gray-200">
+                                    <tr>
+                                        <th class="py-4 px-6 rounded-tl-xl text-sm font-semibold text-gray-600 uppercase tracking-wider">Time</th>
+                                        <th class="py-4 px-6 text-sm font-semibold text-gray-600 uppercase tracking-wider">Condition</th>
+                                        <th class="py-4 px-6 text-sm font-semibold text-gray-600 uppercase tracking-wider">Temp (°F)</th>
+                                        <th class="py-4 px-6 text-sm font-semibold text-gray-600 uppercase tracking-wider">Rain (%)</th>
+                                        <th class="py-4 px-6 rounded-tr-xl text-sm font-semibold text-gray-600 uppercase tracking-wider">Rain (in)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${day.hour.map(hour => `
+                                        <tr class="border-t border-gray-200 hover:bg-gray-50 transition-colors">
+                                            <td class="py-4 px-6 font-medium text-gray-900">${new Date(hour.time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</td>
+                                            <td class="py-4 px-6 text-gray-700">${hour.condition.text}</td>
+                                            <td class="py-4 px-6 text-gray-700">${Math.round(hour.temp_f)}</td>
+                                            <td class="py-4 px-6 text-gray-700">${hour.chance_of_rain}</td>
+                                            <td class="py-4 px-6 text-gray-700">${hour.precip_in}</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                `;
+                container.innerHTML += daySectionHtml;
             });
+        }
 
-            const isRainy = hasRainText || maxPop >= 10 || totalPrecip >= 0.001;
-            const isEvening = prefix.endsWith('_evening');
-            iconEl.textContent = isRainy ? '🌧️' : (isEvening ? '🌕' : '☀️');
-            if (isRainy) {
-                rainEl.textContent = `${maxPop}% chance, ${totalPrecip.toFixed(2)} in`;
-                iconEl.classList.remove('grayscale');
-            } else {
-                rainEl.textContent = '';
-                if (isEvening) {
-                    iconEl.classList.add('grayscale');
-                } else {
-                    iconEl.classList.remove('grayscale');
+        function toggleDetailsTable() {
+            const detailsContainer = document.getElementById('details-table-container');
+            const toggleButton = document.getElementById('toggle-details-btn');
+
+            if (detailsContainer.classList.contains('hidden')) {
+                if (correctForecastData) {
+                    renderDetailsTables();
+                    detailsContainer.classList.remove('hidden');
+                    toggleButton.textContent = 'Hide Details';
                 }
+            } else {
+                detailsContainer.classList.add('hidden');
+                toggleButton.textContent = 'See Details';
             }
-            periodDiv.classList.remove('hidden');
         }
+        
+        async function fetchWeather(location, days) {
+            const apiKey = '7b2406496cd94d9f8ad151853252208';
+            const url = `https://api.weatherapi.com/v1/forecast.json?key=${apiKey}&q=${location}&days=${days}`;
 
-        function loadWeather() {
-            const API_KEY = '7b2406496cd94d9f8ad151853252208'; // Provided WeatherAPI key
-            const lat = 27.7125; // Wimauma, FL
-            const lon = -82.2987;
-            const url = `https://api.weatherapi.com/v1/forecast.json?key=${API_KEY}&q=${lat},${lon}&days=3&aqi=no&alerts=no`;
+            try {
+                const response = await fetch(url);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+                
+                document.getElementById('loading-spinner').classList.add('hidden');
 
-            // Show loader
-            const daysEl = document.getElementById('days');
-            const loaderEl = document.getElementById('loader');
-            daysEl.classList.add('loading');
+                const weatherCardsContainer = document.getElementById('weather-cards');
+                weatherCardsContainer.innerHTML = '';
 
-            // Add timeout to fetch request
-            const fetchWithTimeout = (url, options, timeout = 10000) => {
-                return Promise.race([
-                    fetch(url, options),
-                    new Promise((_, reject) => 
-                        setTimeout(() => reject(new Error('Fetch timeout')), timeout)
-                    )
-                ]);
-            };
+                const colors = ['from-blue-400 to-blue-600', 'from-green-400 to-green-600', 'from-purple-400 to-purple-600'];
+                
+                const today = new Date();
+                const todayDateString = today.toISOString().split('T')[0];
 
-            fetchWithTimeout(url)
-                .then(res => {
-                    if (!res.ok) {
-                        console.error('Fetch error:', res.status, res.statusText);
-                        throw new Error(`API request failed: ${res.status} ${res.statusText}`);
-                    }
-                    return res.json();
-                })
-                .then(data => {
-                    console.log('Raw API response:', data);
-                    if (!data.forecast || !data.forecast.forecastday || !data.location || !data.location.localtime) {
-                        console.error('Invalid API response structure:', data);
-                        throw new Error('Invalid API response structure');
-                    }
+                let startIndex = data.forecast.forecastday.findIndex(day => day.date === todayDateString);
+                if(startIndex === -1) startIndex = 0; 
+                
+                correctForecastData = data.forecast.forecastday.slice(startIndex, startIndex + 3);
+                
+                if (correctForecastData.length < 3) {
+                     showMessage('Data Issue', 'Could not retrieve a full three-day forecast. Displaying available data.');
+                }
+                
+                correctForecastData.forEach((day, i) => {
+                    const date = new Date(day.date + 'T00:00:00');
+                    const dayOfWeek = date.toLocaleDateString('en-US', { weekday: 'long' });
+                    
+                    const morningData = day.hour[10];
+                    const morningRain = calculateRainfall(day.hour, 6, 11);
 
-                    // Hide loader
-                    daysEl.classList.remove('loading');
-                    loaderEl.classList.add('hidden');
+                    const afternoonData = day.hour[15];
+                    const afternoonRain = calculateRainfall(day.hour, 12, 17);
 
-                    const daysData = data.forecast.forecastday;
-                    console.log('API daysData:', daysData.map(d => d.date));
-                    if (!daysData || daysData.length < 3) {
-                        document.getElementById('error').textContent = 'Insufficient forecast data from API';
-                        console.error('API returned insufficient days:', daysData);
-                        return;
-                    }
+                    const eveningData = day.hour[20];
+                    const eveningRain = calculateRainfall(day.hour, 18, 23);
 
-                    const localtime = new Date(data.location.localtime);
-                    const currentHour = localtime.getHours();
-                    const currentDayStr = formatDate(localtime);
-                    console.log('Current date:', currentDayStr, 'Current hour:', currentHour, 'Localtime:', data.location.localtime);
-
-                    // Debug day names
-                    console.log('Parsed day names:', {
-                        day1: getDayName(daysData[0]?.date),
-                        day2: getDayName(daysData[1]?.date),
-                        day3: getDayName(daysData[2]?.date)
-                    });
-
-                    const days = [
-                        { date: daysData[0]?.date, prefix: 'day1', index: 0, name: 'Today' },
-                        { date: daysData[1]?.date, prefix: 'day2', index: 1, name: 'Tomorrow' },
-                        { date: daysData[2]?.date, prefix: 'day3', index: 2, name: getDayName(daysData[2]?.date) }
-                    ];
-                    console.log('Days array:', days.map(d => ({ name: d.name, date: d.date })));
-
-                    let debugInfo = '<h3>Raw API Data</h3>';
-                    daysData.forEach((day, idx) => {
-                        const dayName = idx === 0 ? 'Today' : idx === 1 ? 'Tomorrow' : getDayName(day.date);
-                        debugInfo += `<p><strong>${dayName} (${day.date})</strong></p>`;
-                        debugInfo += `<p>Max Temp: ${day.day.maxtemp_f}°F</p>`;
-                        debugInfo += '<ul>';
-                        day.hour.forEach(h => {
-                            debugInfo += `<li>${h.time}: ${h.chance_of_rain}% rain, ${h.precip_in} in, Condition: ${h.condition.text}</li>`;
-                        });
-                        debugInfo += '</ul>';
-                    });
-
-                    days.forEach(day => {
-                        const dayData = daysData[day.index];
-                        if (!dayData) {
-                            document.getElementById('error').textContent = `No data for ${day.date}`;
-                            return;
-                        }
-
-                        // Set day names and highs
-                        document.getElementById(`${day.prefix}_name`).textContent = day.name;
-                        const highTemp = dayData.day.maxtemp_f;
-                        document.getElementById(`${day.prefix}_high`).textContent = isNaN(highTemp) ? 'N/A' : Math.round(highTemp);
-
-                        const hourly = dayData.hour;
-                        let morningIdx = [];
-                        let afternoonIdx = [];
-                        let eveningIdx = [];
-
-                        // Debug indices for each period
-                        debugInfo += `<p><strong>Indices for ${day.name} (${day.date})</strong></p>`;
-                        hourly.forEach((h, i) => {
-                            const hourTime = new Date(h.time + ' EDT');
-                            const hourDateStr = formatDate(hourTime);
-                            const hour = hourTime.getHours();
-                            console.log(`Hour ${i}: rawTime=${h.time}, parsedTime=${hourTime}, hour=${hour}, date=${hourDateStr}, matches day=${day.date}`);
-                            if (hourDateStr === day.date) {
-                                if (day.index === 0 && hour < currentHour) {
-                                    console.log(`Skipping hour ${hour} for today (before currentHour ${currentHour})`);
-                                    return; // Skip past hours on current day
-                                }
-                                if (hour >= 6 && hour < 12) {
-                                    morningIdx.push(i);
-                                } else if (hour >= 12 && hour < 18) {
-                                    afternoonIdx.push(i);
-                                } else if (hour >= 18 && hour <= 23) {
-                                    eveningIdx.push(i);
-                                }
-                            } else {
-                                console.log(`Hour ${i} date mismatch: hourDateStr=${hourDateStr}, day.date=${day.date}`);
-                            }
-                        });
-
-                        // Fallback for today's evening if empty
-                        if (day.index === 0 && eveningIdx.length === 0 && currentHour >= 18) {
-                            console.log(`Forcing evening indices for today: [${hourly.findIndex(h => h.time.includes('18:00'))}, ${hourly.findIndex(h => h.time.includes('19:00'))}, ${hourly.findIndex(h => h.time.includes('20:00'))}, ${hourly.findIndex(h => h.time.includes('21:00'))}, ${hourly.findIndex(h => h.time.includes('22:00'))}, ${hourly.findIndex(h => h.time.includes('23:00'))}]`);
-                            eveningIdx = [
-                                hourly.findIndex(h => h.time.includes('18:00')),
-                                hourly.findIndex(h => h.time.includes('19:00')),
-                                hourly.findIndex(h => h.time.includes('20:00')),
-                                hourly.findIndex(h => h.time.includes('21:00')),
-                                hourly.findIndex(h => h.time.includes('22:00')),
-                                hourly.findIndex(h => h.time.includes('23:00'))
-                            ].filter(i => i !== -1);
-                        }
-
-                        console.log(`Indices for ${day.name}: Morning=[${morningIdx}], Afternoon=[${afternoonIdx}], Evening=[${eveningIdx}]`);
-                        debugInfo += `<p>Morning Indices: [${morningIdx.join(', ')}]</p>`;
-                        debugInfo += `<p>Afternoon Indices: [${afternoonIdx.join(', ')}]</p>`;
-                        debugInfo += `<p>Evening Indices: [${eveningIdx.join(', ')}]</p>`;
-
-                        const precip = hourly.map(h => h.precip_in);
-                        const pop = hourly.map(h => h.chance_of_rain);
-                        const conditions = hourly.map(h => h.condition);
-
-                        processPeriod(morningIdx, precip, pop, conditions, `${day.prefix}_morning`);
-                        processPeriod(afternoonIdx, precip, pop, conditions, `${day.prefix}_afternoon`);
-                        processPeriod(eveningIdx, precip, pop, conditions, `${day.prefix}_evening`);
-                    });
-
-                    document.getElementById('debug').innerHTML = debugInfo;
-                })
-                .catch(err => {
-                    // Hide loader on error
-                    daysEl.classList.remove('loading');
-                    loaderEl.classList.add('hidden');
-                    console.error('Fetch error:', err);
-                    document.getElementById('error').textContent = `Failed to load weather data: ${err.message}. Please try again later.`;
+                    const cardHtml = `
+                        <div class="relative p-6 rounded-3xl text-white shadow-xl flex flex-col justify-between bg-gradient-to-br ${colors[i]} weather-card">
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <h2 class="text-xl font-bold">${dayOfWeek}</h2>
+                                </div>
+                                <span class="text-2xl font-bold">${Math.round(day.day.mintemp_f)}° / ${Math.round(day.day.maxtemp_f)}°</span>
+                            </div>
+                            
+                            <div class="mt-4 space-y-2">
+                                <div class="grid grid-cols-[60px,32px,1fr] items-center gap-2">
+                                    <span class="text-sm">Morning</span>
+                                    <img src="https:${morningData.condition.icon}" alt="Morning weather" class="w-8 h-8">
+                                    <span class="text-sm">${morningData.condition.text} ${morningRain}</span>
+                                </div>
+                                <div class="grid grid-cols-[60px,32px,1fr] items-center gap-2">
+                                    <span class="text-sm">Afternoon</span>
+                                    <img src="https:${afternoonData.condition.icon}" alt="Afternoon weather" class="w-8 h-8">
+                                    <span class="text-sm">${afternoonData.condition.text} ${afternoonRain}</span>
+                                </div>
+                                <div class="grid grid-cols-[60px,32px,1fr] items-center gap-2">
+                                    <span class="text-sm">Evening</span>
+                                    <img src="https:${eveningData.condition.icon}" alt="Evening weather" class="w-8 h-8">
+                                    <span class="text-sm">${eveningData.condition.text} ${eveningRain}</span>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    weatherCardsContainer.innerHTML += cardHtml;
                 });
+                
+                document.getElementById('toggle-details-btn').addEventListener('click', toggleDetailsTable);
+
+            } catch (error) {
+                console.error("Could not fetch weather data:", error);
+                document.getElementById('loading-spinner').classList.add('hidden');
+                showMessage('Error', 'Failed to fetch weather data. Please check your connection or API key.');
+            }
         }
-
-        // Toggle debug info
-        document.getElementById('debug-toggle').addEventListener('click', () => {
-            const debug = document.getElementById('debug');
-            debug.classList.toggle('hidden');
-            document.getElementById('debug-toggle').textContent = debug.classList.contains('hidden') ? 'See Details' : 'Hide Details';
-        });
-
-        // Load weather for Wimauma, FL immediately
-        loadWeather();
+        
+        window.onload = () => {
+            fetchWeather('33598', 7);
+        };
     </script>
 </body>
 </html>
