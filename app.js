@@ -27,17 +27,17 @@ function renderDetailsTables() {
     
     if (!correctForecastData) return;
 
-    correctForecastData.forEach((day) => {
+    const allDaysHtml = correctForecastData.map((day) => {
         const dayOfWeek = new Date(day.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long' });
 
-        const daySectionHtml = `
+        return `
             <div class="mb-8 details-table-day">
                 <h3 class="text-xl font-bold text-gray-800 mb-4">${dayOfWeek}</h3>
                 <div class="overflow-x-auto">
                     <table class="w-full text-left bg-white rounded-xl shadow-md">
                         <thead class="bg-gray-200">
                             <tr>
-                                <th class="py-4 px-6 rounded-tl-xl text-sm font-semibold text-gray-600 uppercase tracking-wider">Time</th>
+                                <th class="py-4 px-6 rounded-tl-xl text-sm font-semibold text-gray-600 uppercase tracking-wider">Time</th> 
                                 <th class="py-4 px-6 text-sm font-semibold text-gray-600 uppercase tracking-wider">Condition</th>
                                 <th class="py-4 px-6 text-sm font-semibold text-gray-600 uppercase tracking-wider">Temp (°F)</th>
                                 <th class="py-4 px-6 text-sm font-semibold text-gray-600 uppercase tracking-wider">Rain (%)</th>
@@ -48,10 +48,10 @@ function renderDetailsTables() {
                             ${day.hour.map(hour => `
                                 <tr class="border-t border-gray-200 hover:bg-gray-50 transition-colors">
                                     <td class="py-4 px-6 font-medium text-gray-900">${new Date(hour.time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</td>
-                                    <td class="py-4 px-6 text-gray-700">${hour.condition.text}</td>
-                                    <td class="py-4 px-6 text-gray-700">${Math.round(hour.temp_f)}</td>
-                                    <td class="py-4 px-6 text-gray-700">${hour.chance_of_rain}</td>
-                                    <td class="py-4 px-6 text-gray-700">${hour.precip_in}</td>
+                                    <td class="py-4 px-6 text-gray-700">${hour.condition.text}</td> 
+                                    <td class="py-4 px-6 text-gray-700">${Math.round(hour.temp_f)}</td> 
+                                    <td class="py-4 px-6 text-gray-700">${hour.chance_of_rain}</td> 
+                                    <td class="py-4 px-6 text-gray-700">${hour.precip_in.toFixed(2)}</td>
                                 </tr>
                             `).join('')}
                         </tbody>
@@ -59,8 +59,9 @@ function renderDetailsTables() {
                 </div>
             </div>
         `;
-        container.innerHTML += daySectionHtml;
-    });
+    }).join('');
+
+    container.innerHTML = allDaysHtml;
 }
 
 function toggleDetailsTable() {
@@ -73,10 +74,8 @@ function toggleDetailsTable() {
 
     if (isHidden) {
         // Show details and raw JSON
-        if (correctForecastData && rawApiResponseData) {
-            renderDetailsTables();
+        if (rawApiResponseData) {
             jsonOutput.textContent = JSON.stringify(rawApiResponseData, null, 2);
-
             detailsContainer.classList.remove('hidden');
             jsonContainer.classList.remove('hidden');
             toggleButton.textContent = 'Hide Details';
@@ -93,6 +92,8 @@ async function fetchWeather(location, days) {
     const apiKey = '7b2406496cd94d9f8ad151853252208';
     const url = `https://api.weatherapi.com/v1/forecast.json?key=${apiKey}&q=${location}&days=${days}`;
 
+    const loadingSpinner = document.getElementById('loading-spinner');
+
     try {
         const response = await fetch(url);
         if (!response.ok) {
@@ -100,8 +101,6 @@ async function fetchWeather(location, days) {
         }
         const data = await response.json();
         rawApiResponseData = data;
-        
-        document.getElementById('loading-spinner').classList.add('hidden');
 
         const weatherCardsContainer = document.getElementById('weather-cards');
         weatherCardsContainer.innerHTML = '';
@@ -118,19 +117,24 @@ async function fetchWeather(location, days) {
         
         if (correctForecastData.length < 3) {
              showMessage('Data Issue', 'Could not retrieve a full three-day forecast. Displaying available data.');
+        } else {
+            // Pre-render the details table so it's ready to be shown
+            renderDetailsTables();
         }
         
         correctForecastData.forEach((day, i) => {
             const date = new Date(day.date + 'T00:00:00');
             const dayOfWeek = date.toLocaleDateString('en-US', { weekday: 'long' });
             
-            const morningData = day.hour[10];
+            // Use optional chaining and provide a fallback object to prevent errors
+            const fallbackCondition = { condition: { icon: '', text: 'No data' } };
+            const morningData = day.hour[10] ?? fallbackCondition;
             const morningRain = calculateRainfall(day.hour, 6, 11);
 
-            const afternoonData = day.hour[15];
+            const afternoonData = day.hour[15] ?? fallbackCondition;
             const afternoonRain = calculateRainfall(day.hour, 12, 17);
 
-            const eveningData = day.hour[20];
+            const eveningData = day.hour[20] ?? fallbackCondition;
             const eveningRain = calculateRainfall(day.hour, 18, 23);
 
             const cardHtml = `
@@ -143,17 +147,17 @@ async function fetchWeather(location, days) {
                     <div class="mt-4 space-y-2">
                         <div class="grid grid-cols-[60px,32px,1fr] items-center gap-2">
                             <span class="text-sm font-bold md:font-normal">Morning</span>
-                            <img src="https:${morningData.condition.icon}" alt="Morning weather" class="w-8 h-8">
+                            <img src="${morningData.condition.icon ? 'https:' + morningData.condition.icon : ''}" alt="Morning weather" class="w-8 h-8">
                             <span class="text-base font-medium md:text-sm md:font-normal">${morningData.condition.text} ${morningRain}</span>
                         </div>
                         <div class="grid grid-cols-[60px,32px,1fr] items-center gap-2">
                             <span class="text-sm font-bold md:font-normal">Afternoon</span>
-                                    <img src="https:${afternoonData.condition.icon}" alt="Afternoon weather" class="w-8 h-8">
+                            <img src="${afternoonData.condition.icon ? 'https:' + afternoonData.condition.icon : ''}" alt="Afternoon weather" class="w-8 h-8">
                             <span class="text-base font-medium md:text-sm md:font-normal">${afternoonData.condition.text} ${afternoonRain}</span>
                         </div>
                         <div class="grid grid-cols-[60px,32px,1fr] items-center gap-2">
                             <span class="text-sm font-bold md:font-normal">Evening</span>
-                            <img src="https:${eveningData.condition.icon}" alt="Evening weather" class="w-8 h-8">
+                            <img src="${eveningData.condition.icon ? 'https:' + eveningData.condition.icon : ''}" alt="Evening weather" class="w-8 h-8">
                             <span class="text-base font-medium md:text-sm md:font-normal">${eveningData.condition.text} ${eveningRain}</span>
                         </div>
                     </div>
@@ -162,12 +166,12 @@ async function fetchWeather(location, days) {
             weatherCardsContainer.innerHTML += cardHtml;
         });
         
-        document.getElementById('toggle-details-btn').addEventListener('click', toggleDetailsTable);
-
     } catch (error) {
         console.error("Could not fetch weather data:", error);
-        document.getElementById('loading-spinner').classList.add('hidden');
         showMessage('Error', 'Failed to fetch weather data. Please check your connection or API key.');
+    } finally {
+        // This will run regardless of whether the fetch succeeded or failed.
+        loadingSpinner.classList.add('hidden');
     }
 }
 
@@ -178,5 +182,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (closeButton) {
         closeButton.addEventListener('click', hideMessage);
     }
+    // Attach event listener for the details toggle button
+    document.getElementById('toggle-details-btn').addEventListener('click', toggleDetailsTable);
     fetchWeather('33598', 7);
 });
