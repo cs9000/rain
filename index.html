@@ -22,6 +22,10 @@
             from { opacity: 0; transform: translateY(20px); }
             to { opacity: 1; transform: translateY(0); }
         }
+        .selected-card {
+            transform: scale(1.05);
+            box-shadow: 0 0 0 3px #3b82f6; /* Blue-500 */
+        }
         .details-table-day {
             animation: fadeIn 0.5s ease-in-out;
         }
@@ -30,9 +34,32 @@
 <body class="flex items-center justify-center min-h-screen p-4 sm:p-8">
 
     <main class="w-full max-w-4xl p-6 space-y-6 bg-white rounded-3xl shadow-2xl">
-        <header class="text-center">
-            <h1 class="text-3xl font-extrabold text-gray-800">Wimauma</h1>
+        <header class="text-center space-y-2">
+            <h1 id="location-name" class="text-3xl font-extrabold text-gray-800">Wimauma</h1>
         </header>
+
+        <section id="current-weather" class="p-6 bg-blue-50 rounded-2xl shadow-inner mb-6 hidden">
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 items-center text-center md:text-left">
+                <div class="col-span-2 md:col-span-1 flex flex-col items-center justify-center md:items-start">
+                    <div class="flex items-start">
+                        <span id="current-temp" class="text-6xl font-bold text-gray-800">--</span>
+                        <span class="text-2xl font-bold text-gray-700 mt-2">°F</span>
+                    </div>
+                    <span id="current-condition-text" class="text-lg text-gray-600 -mt-1">--</span>
+                </div>
+                <div class="flex items-center justify-center">
+                    <img id="current-condition-icon" src="" alt="Current weather condition" class="w-20 h-20">
+                </div>
+                <div class="flex flex-col text-left text-sm space-y-1">
+                    <span class="font-semibold text-gray-800">Feels like: <span id="current-feels-like" class="font-normal text-gray-600">--°F</span></span>
+                    <span class="font-semibold text-gray-800">Wind: <span id="current-wind" class="font-normal text-gray-600">-- mph --</span></span>
+                </div>
+                <div class="flex flex-col text-left text-sm space-y-1">
+                    <span class="font-semibold text-gray-800">Humidity: <span id="current-humidity" class="font-normal text-gray-600">--%</span></span>
+                    <span class="font-semibold text-gray-800">UV Index: <span id="current-uv" class="font-normal text-gray-600">--</span></span>
+                </div>
+            </div>
+        </section>
 
         <section id="weather-cards" class="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div id="loading-spinner" class="col-span-1 md:col-span-3 text-center p-8">
@@ -42,12 +69,6 @@
                 <p class="mt-4 text-gray-500">Loading weather data...</p>
             </div>
         </section>
-
-        <div class="text-center mt-6">
-            <button id="toggle-details-btn" class="py-3 px-8 bg-blue-500 text-white font-bold rounded-full shadow-lg hover:bg-blue-600 transition-colors transform hover:scale-105">
-                See Details
-            </button>
-        </div>
 
         <section id="details-table-container" class="mt-8 transition-all duration-500 hidden">
         </section>
