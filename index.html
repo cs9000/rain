@@ -51,12 +51,14 @@
                     <img id="current-condition-icon" src="" alt="Current weather condition" class="w-20 h-20">
                 </div>
                 <div class="flex flex-col text-left text-sm space-y-1">
-                    <span class="font-semibold text-gray-800">Feels like: <span id="current-feels-like" class="font-normal text-gray-600">--°F</span></span>
-                    <span class="font-semibold text-gray-800">Wind: <span id="current-wind" class="font-normal text-gray-600">-- mph --</span></span>
+                    <span class="font-semibold text-gray-800">Feels Like: <span id="current-feels-like" class="font-normal text-gray-600">--°F</span></span>
+                    <span class="font-semibold text-gray-800">Wind: <span id="current-wind" class="font-normal text-gray-600">-- mph</span></span>
+                    <span class="font-semibold text-gray-800">Gusts: <span id="current-gusts" class="font-normal text-gray-600">-- mph</span></span>
                 </div>
                 <div class="flex flex-col text-left text-sm space-y-1">
                     <span class="font-semibold text-gray-800">Humidity: <span id="current-humidity" class="font-normal text-gray-600">--%</span></span>
                     <span class="font-semibold text-gray-800">UV Index: <span id="current-uv" class="font-normal text-gray-600">--</span></span>
+                    <span class="font-semibold text-gray-800">Visibility: <span id="current-visibility" class="font-normal text-gray-600">-- mi</span></span>
                 </div>
             </div>
         </section>
@@ -74,7 +76,10 @@
         </section>
 
         <div id="raw-json-container" class="mt-8 hidden">
-            <h3 class="text-xl font-bold text-gray-800 mb-4">Raw API Response</h3>
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold text-gray-800">Raw API Response</h3>
+                <button id="toggle-json-btn" class="py-1 px-4 text-sm bg-gray-200 text-gray-700 font-semibold rounded-full hover:bg-gray-300 transition-colors">Show</button>
+            </div>
             <pre id="raw-json-output" class="bg-gray-100 p-4 rounded-lg overflow-x-auto text-sm text-left"></pre>
         </div>
 

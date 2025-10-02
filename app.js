@@ -18,7 +18,17 @@ function calculateRainfall(hourlyData, startHour, endHour) {
             totalRain += hourlyData[i].precip_in;
         }
     }
-    return totalRain > 0 ? ` (${totalRain.toFixed(1)} in)` : '';
+    return totalRain > 0 ? `${totalRain.toFixed(2)} in` : '';
+}
+
+function getPeriodChanceOfRain(hourlyData, startHour, endHour) {
+    let maxChance = 0;
+    for (let i = startHour; i <= endHour; i++) {
+        if (hourlyData[i] && hourlyData[i].chance_of_rain > maxChance) {
+            maxChance = hourlyData[i].chance_of_rain;
+        }
+    }
+    return maxChance;
 }
 
 function renderDetailsTables() {
@@ -30,10 +40,12 @@ function renderDetailsTables() {
     const allDaysHtml = correctForecastData.map((day, index) => {
         const dayOfWeek = new Date(day.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long' });
 
-        // Add a data-index attribute and hide each day's details table by default
         return `
             <div class="mb-8 details-table-day hidden" data-day-index="${index}">
-                <h3 class="text-xl font-bold text-gray-800 mb-4">${dayOfWeek}</h3>
+                <div class="flex justify-between items-baseline mb-4">
+                    <h3 class="text-xl font-bold text-gray-800">${dayOfWeek}</h3>
+                    <p class="text-sm text-gray-600">Sunrise: <span class="font-medium">${day.astro.sunrise}</span> | Sunset: <span class="font-medium">${day.astro.sunset}</span></p>
+                </div>
                 <div class="overflow-x-auto">
                     <table class="w-full text-left bg-white rounded-xl shadow-md">
                         <thead class="bg-gray-200">
@@ -76,29 +88,25 @@ function handleCardClick(event) {
 
     // First, deselect all cards and hide all details
     document.querySelectorAll('.weather-card').forEach(c => c.classList.remove('selected-card'));
-    document.querySelectorAll('.details-table-day').forEach(table => table.classList.add('hidden'));
+    document.querySelectorAll('.weather-card').forEach(c => c.setAttribute('aria-expanded', 'false'));
     detailsContainer.classList.add('hidden');
-    jsonContainer.classList.add('hidden');
-    detailsContainer.classList.add('details-container-hidden');
-    jsonContainer.classList.add('details-container-hidden');
+    jsonContainer.classList.add('hidden'); // Hide the entire JSON section by default
 
+    document.querySelectorAll('.details-table-day').forEach(table => table.classList.add('hidden'));
     // If the clicked card was NOT already selected, then we show its details.
     if (!isAlreadySelected) {
         // Select the new card
         card.classList.add('selected-card');
+        card.setAttribute('aria-expanded', 'true');
 
         // Show the correct day's details table
         document.querySelector(`.details-table-day[data-day-index="${dayIndex}"]`).classList.remove('hidden');
         detailsContainer.classList.remove('hidden');
-        detailsContainer.classList.remove('details-container-hidden');
-        detailsContainer.style.maxHeight = detailsContainer.scrollHeight + 'px';
 
-        // Show the raw JSON output
+        // Populate the raw JSON output but keep it hidden
         if (rawApiResponseData) {
             jsonOutput.textContent = JSON.stringify(rawApiResponseData, null, 2);
-            jsonContainer.classList.remove('hidden');
-            jsonContainer.classList.remove('details-container-hidden');
-            jsonContainer.style.maxHeight = jsonContainer.scrollHeight + 'px';
+            jsonContainer.classList.remove('hidden'); // Show the section with the "Show" button
         }
     }
 }
@@ -128,8 +136,10 @@ function renderCurrentWeather(currentData) {
     document.getElementById('current-condition-icon').alt = currentData.condition.text;
     document.getElementById('current-feels-like').textContent = `${Math.round(currentData.feelslike_f)}°F`;
     document.getElementById('current-wind').textContent = `${Math.round(currentData.wind_mph)} mph ${currentData.wind_dir}`;
+    document.getElementById('current-gusts').textContent = `${Math.round(currentData.gust_mph)} mph`;
     document.getElementById('current-humidity').textContent = `${currentData.humidity}%`;
     document.getElementById('current-uv').textContent = currentData.uv;
+    document.getElementById('current-visibility').textContent = `${currentData.vis_miles} mi`;
 
     currentWeatherSection.classList.remove('hidden');
 }
@@ -153,35 +163,41 @@ function renderForecastCards(forecastData, days) {
         const fallbackCondition = { condition: { icon: '', text: 'No data' } };
         const morningData = day.hour[10] ?? fallbackCondition;
         const morningRain = calculateRainfall(day.hour, 6, 11);
+        const morningChance = getPeriodChanceOfRain(day.hour, 6, 11);
 
         const afternoonData = day.hour[15] ?? fallbackCondition;
         const afternoonRain = calculateRainfall(day.hour, 12, 17);
+        const afternoonChance = getPeriodChanceOfRain(day.hour, 12, 17);
 
         const eveningData = day.hour[20] ?? fallbackCondition;
         const eveningRain = calculateRainfall(day.hour, 18, 23);
+        const eveningChance = getPeriodChanceOfRain(day.hour, 18, 23);
 
         const cardHtml = `
-            <div class="relative p-6 rounded-3xl text-gray-900 shadow-xl hover:shadow-2xl cursor-pointer transition-all flex flex-col space-y-4 bg-gradient-to-br ${colors[i]} weather-card" data-day-index="${i}">
+            <div class="relative p-6 rounded-3xl text-gray-900 shadow-xl hover:shadow-2xl cursor-pointer transition-all flex flex-col space-y-4 bg-gradient-to-br ${colors[i]} weather-card" data-day-index="${i}" role="button" tabindex="0" aria-expanded="false">
                 <div class="flex flex-col items-start">
                     <h2 class="text-3xl font-bold">${dayOfWeek}</h2>
-                    <span class="text-xl font-bold">${Math.round(day.day.mintemp_f)}° / ${Math.round(day.day.maxtemp_f)}°</span>
+                    <div class="flex items-baseline space-x-2">
+                        <span class="text-xl font-bold">${Math.round(day.day.mintemp_f)}° / ${Math.round(day.day.maxtemp_f)}°</span>
+                        <span class="text-sm font-medium text-gray-800/80">💧 ${day.day.daily_chance_of_rain}%</span>
+                    </div>
                 </div>
                 
                 <div class="mt-4 space-y-2">
                     <div class="grid grid-cols-[60px,32px,1fr] items-center gap-2">
                         <span class="text-sm font-bold md:font-normal">Morning</span>
-                        <img src="${morningData.condition.icon ? 'https:' + morningData.condition.icon : ''}" alt="Morning weather" class="w-8 h-8">
-                        <span class="text-base font-medium md:text-sm md:font-normal">${morningData.condition.text} ${morningRain}</span>
+                        <img src="${morningData.condition.icon ? 'https:' + morningData.condition.icon : ''}" alt="${morningData.condition.text}" class="w-8 h-8">
+                        <span class="text-base font-medium md:text-sm md:font-normal">${morningData.condition.text} ${morningChance > 0 && morningRain ? `<span class="text-gray-800/60">(💧${morningChance}% ${morningRain})</span>` : ''}</span>
                     </div>
                     <div class="grid grid-cols-[60px,32px,1fr] items-center gap-2">
                         <span class="text-sm font-bold md:font-normal">Afternoon</span>
-                        <img src="${afternoonData.condition.icon ? 'https:' + afternoonData.condition.icon : ''}" alt="Afternoon weather" class="w-8 h-8">
-                        <span class="text-base font-medium md:text-sm md:font-normal">${afternoonData.condition.text} ${afternoonRain}</span>
+                        <img src="${afternoonData.condition.icon ? 'https:' + afternoonData.condition.icon : ''}" alt="${afternoonData.condition.text}" class="w-8 h-8">
+                        <span class="text-base font-medium md:text-sm md:font-normal">${afternoonData.condition.text} ${afternoonChance > 0 && afternoonRain ? `<span class="text-gray-800/60">(💧${afternoonChance}% ${afternoonRain})</span>` : ''}</span>
                     </div>
                     <div class="grid grid-cols-[60px,32px,1fr] items-center gap-2">
                         <span class="text-sm font-bold md:font-normal">Evening</span>
-                        <img src="${eveningData.condition.icon ? 'https:' + eveningData.condition.icon : ''}" alt="Evening weather" class="w-8 h-8">
-                        <span class="text-base font-medium md:text-sm md:font-normal">${eveningData.condition.text} ${eveningRain}</span>
+                        <img src="${eveningData.condition.icon ? 'https:' + eveningData.condition.icon : ''}" alt="${eveningData.condition.text}" class="w-8 h-8">
+                        <span class="text-base font-medium md:text-sm md:font-normal">${eveningData.condition.text} ${eveningChance > 0 && eveningRain ? `<span class="text-gray-800/60">(💧${eveningChance}% ${eveningRain})</span>` : ''}</span>
                     </div>
                 </div>
             </div>
@@ -242,6 +258,21 @@ document.addEventListener('DOMContentLoaded', () => {
     if (closeButton) {
         closeButton.addEventListener('click', hideMessage);
     }
+
+    const toggleJsonBtn = document.getElementById('toggle-json-btn');
+    const jsonOutput = document.getElementById('raw-json-output');
+    toggleJsonBtn.addEventListener('click', () => {
+        const isHidden = jsonOutput.classList.toggle('hidden');
+        if (isHidden) {
+            toggleJsonBtn.textContent = 'Show';
+        } else {
+            toggleJsonBtn.textContent = 'Hide';
+        }
+    });
+
+    // Hide the JSON output by default when the page loads
+    jsonOutput.classList.add('hidden');
+    toggleJsonBtn.textContent = 'Show';
 
     fetchAndProcessWeather('33598', 3);
 });
