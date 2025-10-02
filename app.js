@@ -90,17 +90,20 @@ function toggleDetailsTable() {
 
 async function fetchWeather(location, days) {
     const apiKey = '7b2406496cd94d9f8ad151853252208';
-    const url = `https://api.weatherapi.com/v1/forecast.json?key=${apiKey}&q=${location}&days=${days}`;
+    // Request one more day than needed to handle late-night scenarios where 'today' might be dropped.
+    const url = `https://api.weatherapi.com/v1/forecast.json?key=${apiKey}&q=${location}&days=${days + 1}`;
 
     const loadingSpinner = document.getElementById('loading-spinner');
 
     try {
         const response = await fetch(url);
         if (!response.ok) {
+            loadingSpinner.classList.add('hidden');
             throw new Error(`HTTP error! status: ${response.status}`);
         }
         const data = await response.json();
         rawApiResponseData = data;
+        correctForecastData = []; // Reset data
 
         const weatherCardsContainer = document.getElementById('weather-cards');
         weatherCardsContainer.innerHTML = '';
@@ -110,16 +113,22 @@ async function fetchWeather(location, days) {
         const today = new Date();
         const todayDateString = today.toISOString().split('T')[0];
 
+        // Find today's index in the forecast data from the API
         let startIndex = data.forecast.forecastday.findIndex(day => day.date === todayDateString);
-        if(startIndex === -1) startIndex = 0; 
         
-        correctForecastData = data.forecast.forecastday.slice(startIndex, startIndex + 3);
+        // If today is not found (e.g., it's past midnight UTC), start from the first day returned.
+        if(startIndex === -1) {
+            startIndex = 0; 
+        }
         
-        if (correctForecastData.length < 3) {
+        // Get the next 3 days of forecast data available.
+        correctForecastData = data.forecast.forecastday.slice(startIndex, startIndex + days);
+        
+        if (correctForecastData.length < days) {
              showMessage('Data Issue', 'Could not retrieve a full three-day forecast. Displaying available data.');
         } else {
-            // Pre-render the details table so it's ready to be shown
-            renderDetailsTables();
+            // Hide message if we now have enough data
+            hideMessage();
         }
         
         correctForecastData.forEach((day, i) => {
@@ -166,6 +175,9 @@ async function fetchWeather(location, days) {
             weatherCardsContainer.innerHTML += cardHtml;
         });
         
+        // Render the details table with the corrected forecast data
+        renderDetailsTables();
+        
     } catch (error) {
         console.error("Could not fetch weather data:", error);
         showMessage('Error', 'Failed to fetch weather data. Please check your connection or API key.');
@@ -184,5 +196,5 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     // Attach event listener for the details toggle button
     document.getElementById('toggle-details-btn').addEventListener('click', toggleDetailsTable);
-    fetchWeather('33598', 7);
+    fetchWeather('33598', 3);
 });
