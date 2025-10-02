@@ -116,6 +116,7 @@ function showLoadingState() {
     weatherCardsContainer.innerHTML = `<div id="loading-spinner" class="col-span-1 md:col-span-3 text-center p-8"><div class="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]" role="status"><span class="!absolute !-m-px !h-px !w-px !overflow-hidden !whitespace-nowrap !border-0 !p-0 ![clip:rect(0,0,0,0)]">Loading...</span></div><p class="mt-4 text-gray-500">Loading weather data...</p></div>`;
 
     // Hide current weather and details sections
+    document.getElementById('weather-alerts').classList.add('hidden');
     document.getElementById('current-weather').classList.add('hidden');
     const detailsContainer = document.getElementById('details-table-container');
     detailsContainer.innerHTML = '';
@@ -126,6 +127,26 @@ function showLoadingState() {
 function hideLoadingState() {
     const loadingSpinner = document.getElementById('loading-spinner');
     if (loadingSpinner) loadingSpinner.remove();
+}
+
+function renderAlerts(alerts) {
+    const alertsContainer = document.getElementById('weather-alerts');
+    alertsContainer.innerHTML = ''; // Clear old alerts
+    alertsContainer.classList.add('hidden');
+
+    if (!alerts || alerts.length === 0) {
+        return; // No alerts to display
+    }
+
+    const alertsHtml = alerts.map(alert => `
+        <div class="p-4 bg-red-100 border-l-4 border-red-500 text-red-800 rounded-r-lg shadow-md">
+            <p class="font-bold">${alert.headline}</p>
+            <p class="text-sm mt-2">${alert.desc}</p>
+        </div>
+    `).join('');
+
+    alertsContainer.innerHTML = alertsHtml;
+    alertsContainer.classList.remove('hidden');
 }
 
 function renderCurrentWeather(currentData) {
@@ -214,7 +235,7 @@ function renderForecastCards(forecastData, days) {
 async function fetchAndProcessWeather(location, days) {
     const apiKey = '7b2406496cd94d9f8ad151853252208';
     // Request one more day than needed to handle late-night scenarios where 'today' might be dropped.
-    const url = `https://api.weatherapi.com/v1/forecast.json?key=${apiKey}&q=${location}&days=${days + 1}`;
+    const url = `https://api.weatherapi.com/v1/forecast.json?key=${apiKey}&q=${location}&days=${days + 1}&aqi=no&alerts=yes`;
 
     showLoadingState();
 
@@ -240,6 +261,7 @@ async function fetchAndProcessWeather(location, days) {
         correctForecastData = data.forecast.forecastday.slice(startIndex, startIndex + days);
         
         // Render all the UI components with the new data
+        renderAlerts(data.alerts.alert);
         renderCurrentWeather(data.current);
         renderForecastCards(correctForecastData, days);
         renderDetailsTables();
