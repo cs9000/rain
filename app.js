@@ -46,6 +46,9 @@ function renderDetailsTables() {
                     <h3 class="text-xl font-bold text-gray-800">${dayOfWeek}</h3>
                     <p class="text-sm text-gray-600">Sunrise: <span class="font-medium">${day.astro.sunrise}</span> | Sunset: <span class="font-medium">${day.astro.sunset}</span></p>
                 </div>
+                <div class="mb-8">
+                    <canvas id="chart-day-${index}"></canvas>
+                </div>
                 <div class="overflow-x-auto">
                     <table class="w-full text-left bg-white rounded-xl shadow-md">
                         <thead class="bg-gray-200">
@@ -75,6 +78,55 @@ function renderDetailsTables() {
     }).join('');
 
     container.innerHTML = allDaysHtml;
+
+    // Now that the canvases are in the DOM, render the charts
+    correctForecastData.forEach((day, index) => {
+        const ctx = document.getElementById(`chart-day-${index}`).getContext('2d');
+        const labels = day.hour.map(hour => new Date(hour.time).toLocaleTimeString('en-US', { hour: 'numeric' }));
+        
+        const rawPrecipData = day.hour.map(hour => hour.precip_in);
+        const cappedPrecipData = rawPrecipData.map(p => Math.min(p, 1));
+
+        const backgroundColors = rawPrecipData.map(p => {
+            if (p >= 1.0) return 'rgba(190, 24, 93, 0.7)';    // Fuchsia-700 for extreme rain
+            if (p > 0.3) return 'rgba(239, 68, 68, 0.6)';     // Red-500 for heavy rain
+            if (p > 0.1) return 'rgba(245, 158, 11, 0.6)';    // Orange-500 for moderate rain
+            return 'rgba(59, 130, 246, 0.6)';                // Blue-500 for light rain
+        });
+
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Hourly Precipitation (in)',
+                    data: cappedPrecipData,
+                    backgroundColor: backgroundColors,
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                plugins: {
+                    legend: {
+                        display: false // Hide the legend as the colors are self-explanatory
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 1, // Fix the y-axis from 0 to 1 inch
+                        title: {
+                            display: true,
+                            text: 'Precipitation (in)'
+                        }
+                    },
+                    x: {
+                        grid: { display: false } // Hide vertical grid lines for a cleaner look
+                    }
+                }
+            }
+        });
+    });
 }
 
 function handleCardClick(event) {
@@ -138,12 +190,25 @@ function renderAlerts(alerts) {
         return; // No alerts to display
     }
 
-    const alertsHtml = alerts.map(alert => `
-        <div class="p-4 bg-red-100 border-l-4 border-red-500 text-red-800 rounded-r-lg shadow-md">
+    const alertsHtml = alerts.map(alert => {
+        let alertClasses = 'bg-gray-100 border-gray-500 text-gray-800'; // Default/Info
+        const eventText = alert.event.toLowerCase();
+
+        if (eventText.includes('warning')) {
+            alertClasses = 'bg-red-100 border-red-500 text-red-800'; // High severity
+        } else if (eventText.includes('watch')) {
+            alertClasses = 'bg-orange-100 border-orange-500 text-orange-800'; // Medium severity
+        } else if (eventText.includes('advisory')) {
+            alertClasses = 'bg-yellow-100 border-yellow-500 text-yellow-800'; // Low severity
+        }
+
+        return `
+        <div class="p-4 border-l-4 rounded-r-lg shadow-md ${alertClasses}">
             <p class="font-bold">${alert.headline}</p>
             <p class="text-sm mt-2">${alert.desc}</p>
         </div>
-    `).join('');
+    `
+    }).join('');
 
     alertsContainer.innerHTML = alertsHtml;
     alertsContainer.classList.remove('hidden');
@@ -161,6 +226,11 @@ function renderCurrentWeather(currentData) {
     document.getElementById('current-humidity').textContent = `${currentData.humidity}%`;
     document.getElementById('current-uv').textContent = currentData.uv;
     document.getElementById('current-visibility').textContent = `${currentData.vis_miles} mi`;
+
+    // Format and display the "last updated" timestamp
+    const lastUpdatedDate = new Date(currentData.last_updated);
+    const formattedTime = lastUpdatedDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    document.getElementById('last-updated').textContent = `Last updated at ${formattedTime}`;
 
     currentWeatherSection.classList.remove('hidden');
 }

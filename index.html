@@ -9,6 +9,7 @@
     <!-- Visualization & Content Choices: Report Info: Daily forecast summary -> Goal: Quick overview -> Viz/Presentation: Three distinct, color-coded summary cards -> Interaction: None, purely informational -> Justification: Cards provide a scannable, high-level summary. Report Info: Hourly forecast data -> Goal: Detailed planning -> Viz/Presentation: Tabular data -> Interaction: "See/Hide Details" button toggles visibility -> Justification: A table is the clearest way to present dense, structured hourly data. Library/Method: Vanilla JS for DOM manipulation and API fetching. -->
     <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body {
             font-family: 'Inter', sans-serif;
@@ -36,6 +37,7 @@
     <main class="w-full max-w-4xl p-6 space-y-6 bg-white rounded-3xl shadow-2xl">
         <header class="text-center space-y-2">
             <h1 id="location-name" class="text-3xl font-extrabold text-gray-800">Wimauma</h1>
+            <p id="last-updated" class="text-sm text-gray-500"></p>
         </header>
 
         <section id="weather-alerts" class="hidden mb-6 space-y-4">
@@ -96,6 +98,6 @@
     </main>
 
     <!-- The 'defer' attribute ensures the script is executed after the HTML is parsed, preventing blocking -->
-    <script src="app.js" defer></script>
+    <script src="app.js?v=1.1" defer></script>
 </body>
 </html>
