@@ -208,17 +208,17 @@ function renderForecastCards(forecastData, days) {
                     <div class="grid grid-cols-[60px,32px,1fr] items-center gap-2">
                         <span class="text-sm font-bold md:font-normal">Morning</span>
                         <img src="${morningData.condition.icon ? 'https:' + morningData.condition.icon : ''}" alt="${morningData.condition.text}" class="w-8 h-8">
-                        <span class="text-base font-medium md:text-sm md:font-normal">${morningData.condition.text} ${morningChance > 0 && morningRain ? `<span class="text-gray-800/60">(💧${morningChance}% ${morningRain})</span>` : ''}</span>
+                        <span class="text-base font-medium md:text-sm md:font-normal">${morningData.condition.text} ${morningChance > 0 && morningRain ? `<span class="text-gray-800/60">💧&nbsp;${morningChance}% ${morningRain}</span>` : ''}</span>
                     </div>
                     <div class="grid grid-cols-[60px,32px,1fr] items-center gap-2">
                         <span class="text-sm font-bold md:font-normal">Afternoon</span>
                         <img src="${afternoonData.condition.icon ? 'https:' + afternoonData.condition.icon : ''}" alt="${afternoonData.condition.text}" class="w-8 h-8">
-                        <span class="text-base font-medium md:text-sm md:font-normal">${afternoonData.condition.text} ${afternoonChance > 0 && afternoonRain ? `<span class="text-gray-800/60">(💧${afternoonChance}% ${afternoonRain})</span>` : ''}</span>
+                        <span class="text-base font-medium md:text-sm md:font-normal">${afternoonData.condition.text} ${afternoonChance > 0 && afternoonRain ? `<span class="text-gray-800/60">💧&nbsp;${afternoonChance}% ${afternoonRain}</span>` : ''}</span>
                     </div>
                     <div class="grid grid-cols-[60px,32px,1fr] items-center gap-2">
                         <span class="text-sm font-bold md:font-normal">Evening</span>
                         <img src="${eveningData.condition.icon ? 'https:' + eveningData.condition.icon : ''}" alt="${eveningData.condition.text}" class="w-8 h-8">
-                        <span class="text-base font-medium md:text-sm md:font-normal">${eveningData.condition.text} ${eveningChance > 0 && eveningRain ? `<span class="text-gray-800/60">(💧${eveningChance}% ${eveningRain})</span>` : ''}</span>
+                        <span class="text-base font-medium md:text-sm md:font-normal">${eveningData.condition.text} ${eveningChance > 0 && eveningRain ? `<span class="text-gray-800/60">💧&nbsp;${eveningChance}% ${eveningRain}</span>` : ''}</span>
                     </div>
                 </div>
             </div>
