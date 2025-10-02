@@ -160,6 +160,18 @@ function handleCardClick(event) {
             jsonOutput.textContent = JSON.stringify(rawApiResponseData, null, 2);
             jsonContainer.classList.remove('hidden'); // Show the section with the "Show" button
         }
+
+        // On smaller screens, scroll down to the details section to provide feedback
+        if (window.innerWidth < 768) { // 768px is the 'md' breakpoint in Tailwind
+            const headerOffset = 80; // Provides space for a site header or just some breathing room
+            const elementPosition = detailsContainer.getBoundingClientRect().top;
+            const offsetPosition = elementPosition + window.scrollY - headerOffset;
+          
+            window.scrollTo({
+                 top: offsetPosition,
+                 behavior: "smooth"
+            });
+        }
     }
 }
 
