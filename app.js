@@ -65,7 +65,6 @@ function renderDetailsTables() {
                             <tr>
                                 <th class="py-4 px-6 rounded-tl-xl text-sm font-semibold text-gray-600 uppercase tracking-wider">Time</th> 
                                 <th class="py-4 px-6 text-sm font-semibold text-gray-600 uppercase tracking-wider">Condition</th>
-                                <th class="py-4 px-6 text-sm font-semibold text-gray-600 uppercase tracking-wider">Temp (°F)</th>
                                 <th class="py-4 px-6 text-sm font-semibold text-gray-600 uppercase tracking-wider">Rain (%)</th>
                                 <th class="py-4 px-6 rounded-tr-xl text-sm font-semibold text-gray-600 uppercase tracking-wider">Rain (in)</th>
                             </tr>
@@ -75,7 +74,6 @@ function renderDetailsTables() {
                                 <tr class="border-t border-gray-200 hover:bg-gray-50 transition-colors">
                                     <td class="py-4 px-6 font-medium text-gray-900">${new Date(hour.time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</td>
                                     <td class="py-4 px-6 text-gray-700">${hour.condition.text}</td> 
-                                    <td class="py-4 px-6 text-gray-700">${Math.round(hour.temp_f)}</td> 
                                     <td class="py-4 px-6 text-gray-700">${hour.chance_of_rain}</td> 
                                     <td class="py-4 px-6 text-gray-700">${hour.precip_in.toFixed(2)}</td>
                                 </tr>
