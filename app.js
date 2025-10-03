@@ -395,5 +395,10 @@ document.addEventListener('DOMContentLoaded', () => {
     jsonOutput.classList.add('hidden');
     toggleJsonBtn.textContent = 'Show';
 
-    fetchAndProcessWeather('33598', 3);
+    // Check for a 'location' URL parameter, otherwise use the default.
+    const urlParams = new URLSearchParams(window.location.search);
+    const locationParam = urlParams.get('location');
+    const defaultLocation = '33598';
+
+    fetchAndProcessWeather(locationParam || defaultLocation, 3);
 });
