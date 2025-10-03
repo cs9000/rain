@@ -63,19 +63,19 @@ function renderDetailsTables() {
                     <table class="w-full text-left bg-white rounded-xl shadow-md">
                         <thead class="bg-gray-200">
                             <tr>
-                                <th class="py-4 px-6 rounded-tl-xl text-sm font-semibold text-gray-600 uppercase tracking-wider">Time</th> 
-                                <th class="py-4 px-6 text-sm font-semibold text-gray-600 uppercase tracking-wider">Condition</th>
-                                <th class="py-4 px-6 text-sm font-semibold text-gray-600 uppercase tracking-wider">Rain (%)</th>
-                                <th class="py-4 px-6 rounded-tr-xl text-sm font-semibold text-gray-600 uppercase tracking-wider">Rain (in)</th>
+                                <th class="py-3 px-2 sm:px-4 text-sm font-semibold text-gray-600 uppercase tracking-wider text-center sm:text-left rounded-tl-xl">Time</th> 
+                                <th class="py-3 px-2 sm:px-4 text-sm font-semibold text-gray-600 uppercase tracking-wider">Condition</th>
+                                <th class="py-3 px-2 sm:px-4 text-sm font-semibold text-gray-600 uppercase tracking-wider text-center">Rain (%)</th>
+                                <th class="py-3 px-2 sm:px-4 text-sm font-semibold text-gray-600 uppercase tracking-wider text-center rounded-tr-xl">Rain (in)</th>
                             </tr>
                         </thead>
                         <tbody>
                             ${day.hour.map(hour => `
                                 <tr class="border-t border-gray-200 hover:bg-gray-50 transition-colors">
-                                    <td class="py-4 px-6 font-medium text-gray-900">${new Date(hour.time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</td>
-                                    <td class="py-4 px-6 text-gray-700">${hour.condition.text}</td> 
-                                    <td class="py-4 px-6 text-gray-700">${hour.chance_of_rain}</td> 
-                                    <td class="py-4 px-6 text-gray-700">${hour.precip_in.toFixed(2)}</td>
+                                    <td class="py-3 px-2 sm:px-4 font-medium text-gray-900 text-sm text-center sm:text-left">${new Date(hour.time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</td>
+                                    <td class="py-3 px-2 sm:px-4 text-gray-700 text-sm">${hour.condition.text}</td> 
+                                    <td class="py-3 px-2 sm:px-4 text-gray-700 text-sm text-center">${hour.chance_of_rain}</td> 
+                                    <td class="py-3 px-2 sm:px-4 text-gray-700 text-sm text-center">${hour.precip_in.toFixed(2)}</td>
                                 </tr>
                             `).join('')}
                         </tbody>
