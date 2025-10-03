@@ -21,6 +21,16 @@ function calculateRainfall(hourlyData, startHour, endHour) {
     return totalRain > 0 ? `${totalRain.toFixed(2)} in` : '';
 }
 
+function calculateRainfallValue(hourlyData, startHour, endHour) {
+    let totalRain = 0;
+    for (let i = startHour; i <= endHour; i++) {
+        if (hourlyData[i]) {
+            totalRain += hourlyData[i].precip_in;
+        }
+    }
+    return totalRain;
+}
+
 function getPeriodChanceOfRain(hourlyData, startHour, endHour) {
     let maxChance = 0;
     for (let i = startHour; i <= endHour; i++) {
@@ -85,7 +95,7 @@ function renderDetailsTables() {
         const labels = day.hour.map(hour => new Date(hour.time).toLocaleTimeString('en-US', { hour: 'numeric' }));
         
         const rawPrecipData = day.hour.map(hour => hour.precip_in);
-        const cappedPrecipData = rawPrecipData.map(p => Math.min(p, 1));
+        const cappedPrecipData = rawPrecipData.map(p => Math.min(p, 0.5));
 
         const backgroundColors = rawPrecipData.map(p => {
             if (p >= 1.0) return 'rgba(190, 24, 93, 0.7)';    // Fuchsia-700 for extreme rain
@@ -114,7 +124,7 @@ function renderDetailsTables() {
                 scales: {
                     y: {
                         beginAtZero: true,
-                        max: 1, // Fix the y-axis from 0 to 1 inch
+                        max: 0.5, // Fix the y-axis from 0 to 0.5 inch
                         title: {
                             display: true,
                             text: 'Precipitation (in)'
@@ -264,25 +274,32 @@ function renderForecastCards(forecastData, days) {
         const dayOfWeek = date.toLocaleDateString('en-US', { weekday: 'long' });
         
         const fallbackCondition = { condition: { icon: '', text: 'No data' } };
+
+        const morningRainValue = calculateRainfallValue(day.hour, 6, 11);
+        const afternoonRainValue = calculateRainfallValue(day.hour, 12, 17);
+        const eveningRainValue = calculateRainfallValue(day.hour, 18, 23);
+        const totalDailyRain = morningRainValue + afternoonRainValue + eveningRainValue;
+
         const morningData = day.hour[10] ?? fallbackCondition;
-        const morningRain = calculateRainfall(day.hour, 6, 11);
+        const morningRain = morningRainValue > 0 ? `${morningRainValue.toFixed(2)} in` : '';
         const morningChance = getPeriodChanceOfRain(day.hour, 6, 11);
 
         const afternoonData = day.hour[15] ?? fallbackCondition;
-        const afternoonRain = calculateRainfall(day.hour, 12, 17);
+        const afternoonRain = afternoonRainValue > 0 ? `${afternoonRainValue.toFixed(2)} in` : '';
         const afternoonChance = getPeriodChanceOfRain(day.hour, 12, 17);
 
         const eveningData = day.hour[20] ?? fallbackCondition;
-        const eveningRain = calculateRainfall(day.hour, 18, 23);
+        const eveningRain = eveningRainValue > 0 ? `${eveningRainValue.toFixed(2)} in` : '';
         const eveningChance = getPeriodChanceOfRain(day.hour, 18, 23);
 
         const cardHtml = `
             <div class="relative p-6 rounded-3xl text-gray-900 shadow-xl hover:shadow-2xl cursor-pointer transition-all flex flex-col space-y-4 bg-gradient-to-br ${colors[i]} weather-card" data-day-index="${i}" role="button" tabindex="0" aria-expanded="false">
                 <div class="flex flex-col items-start">
                     <h2 class="text-3xl font-bold">${dayOfWeek}</h2>
-                    <div class="flex items-baseline space-x-2">
+                    <div class="flex items-baseline space-x-2 flex-wrap">
                         <span class="text-xl font-bold">${Math.round(day.day.mintemp_f)}° / ${Math.round(day.day.maxtemp_f)}°</span>
                         <span class="text-sm font-medium text-gray-800/80">💧 ${day.day.daily_chance_of_rain}%</span>
+                        ${totalDailyRain > 0 ? `<span class="text-sm font-medium text-gray-800/80">${totalDailyRain.toFixed(2)} in</span>` : ''}
                     </div>
                 </div>
                 
