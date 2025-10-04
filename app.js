@@ -348,14 +348,9 @@ async function fetchAndProcessWeather(location, days) {
         // Update the location name in the header
         document.getElementById('location-name').textContent = data.location.name;
 
-        // Find and slice the correct forecast days
-        const today = new Date();
-        const todayDateString = today.toISOString().split('T')[0];
-        let startIndex = data.forecast.forecastday.findIndex(day => day.date === todayDateString);
-        if(startIndex === -1) {
-            startIndex = 0; 
-        }
-        correctForecastData = data.forecast.forecastday.slice(startIndex, startIndex + days);
+        // The API response's first forecast day is always "today" for the requested location.
+        // We simply slice from the beginning of the array to get the correct number of days.
+        correctForecastData = data.forecast.forecastday.slice(0, days);
         
         // Render all the UI components with the new data
         renderAlerts(data.alerts.alert);
