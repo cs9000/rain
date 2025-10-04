@@ -36,7 +36,7 @@
 
     <main class="w-full max-w-4xl p-6 space-y-6 bg-white rounded-3xl shadow-2xl">
         <header class="text-center space-y-2">
-            <h1 id="location-name" class="text-3xl font-extrabold text-gray-800">Wimauma</h1>
+            <h1 id="location-name" class="text-3xl font-extrabold text-gray-800 cursor-pointer hover:text-blue-600 transition-colors" title="Change location">Wimauma</h1>
             <p id="last-updated" class="text-sm text-gray-500"></p>
         </header>
 
@@ -96,6 +96,21 @@
             </div>
         </div>
     </main>
+
+    <!-- City Selection Modal -->
+    <div id="city-selection-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white p-6 rounded-xl shadow-lg w-full max-w-xs text-center">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold">Select a City</h3>
+                <button id="close-city-modal-btn" class="text-gray-500 hover:text-gray-800" aria-label="Close">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            <ul id="city-list" class="space-y-2 text-left">
+                <!-- Cities will be populated by JavaScript -->
+            </ul>
+        </div>
+    </div>
 
     <!-- The 'defer' attribute ensures the script is executed after the HTML is parsed, preventing blocking -->
     <script src="app.js?v=1.2" defer></script>

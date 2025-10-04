@@ -1,6 +1,14 @@
 let correctForecastData = null;
 let rawApiResponseData = null;
 
+// Predefined list of cities and their corresponding zip codes
+const cities = [
+    { name: 'Dexter', zip: '04930' },
+    { name: 'Moorestown', zip: '08057' },
+    { name: 'Weston', zip: '06883' },
+    { name: 'Wimauma', zip: '33598' }
+];
+
 function showMessage(title, content) {
     document.getElementById('message-title').textContent = title;
     document.getElementById('message-content').textContent = content;
@@ -9,16 +17,6 @@ function showMessage(title, content) {
 
 function hideMessage() {
     document.getElementById('message-box').classList.add('hidden');
-}
-
-function calculateRainfall(hourlyData, startHour, endHour) {
-    let totalRain = 0;
-    for (let i = startHour; i <= endHour; i++) {
-        if (hourlyData[i]) {
-            totalRain += hourlyData[i].precip_in;
-        }
-    }
-    return totalRain > 0 ? `${totalRain.toFixed(2)} in` : '';
 }
 
 function calculateRainfallValue(hourlyData, startHour, endHour) {
@@ -169,8 +167,8 @@ function handleCardClick(event) {
             jsonContainer.classList.remove('hidden'); // Show the section with the "Show" button
         }
 
-        // On smaller screens, scroll down to the details section to provide feedback
-        if (window.innerWidth < 768) { // 768px is the 'md' breakpoint in Tailwind
+        // On smaller and medium (tablet) screens, scroll down to the details section to provide feedback
+        if (window.innerWidth < 1024) { // 1024px is the 'lg' breakpoint in Tailwind
             const headerOffset = 80; // Provides space for a site header or just some breathing room
             const elementPosition = detailsContainer.getBoundingClientRect().top;
             const offsetPosition = elementPosition + window.scrollY - headerOffset;
@@ -305,17 +303,17 @@ function renderForecastCards(forecastData, days) {
                     <div class="grid grid-cols-[60px,32px,1fr] items-center gap-2">
                         <span class="text-sm font-bold md:font-normal">Morning</span>
                         <img src="${morningData.condition.icon ? 'https:' + morningData.condition.icon : ''}" alt="${morningData.condition.text}" class="w-8 h-8">
-                        <span class="text-base font-medium md:text-sm md:font-normal">${morningData.condition.text} ${morningChance > 0 && morningRain ? `<span class="text-gray-800/60">💧&nbsp;${morningChance}% ${morningRain}</span>` : ''}</span>
+                        <span class="text-base font-medium md:text-sm md:font-normal">${morningData.condition.text} ${morningRain ? `<span class="text-gray-800/60">💧&nbsp;${morningChance}% ${morningRain}</span>` : ''}</span>
                     </div>
                     <div class="grid grid-cols-[60px,32px,1fr] items-center gap-2">
                         <span class="text-sm font-bold md:font-normal">Afternoon</span>
                         <img src="${afternoonData.condition.icon ? 'https:' + afternoonData.condition.icon : ''}" alt="${afternoonData.condition.text}" class="w-8 h-8">
-                        <span class="text-base font-medium md:text-sm md:font-normal">${afternoonData.condition.text} ${afternoonChance > 0 && afternoonRain ? `<span class="text-gray-800/60">💧&nbsp;${afternoonChance}% ${afternoonRain}</span>` : ''}</span>
+                        <span class="text-base font-medium md:text-sm md:font-normal">${afternoonData.condition.text} ${afternoonRain ? `<span class="text-gray-800/60">💧&nbsp;${afternoonChance}% ${afternoonRain}</span>` : ''}</span>
                     </div>
                     <div class="grid grid-cols-[60px,32px,1fr] items-center gap-2">
                         <span class="text-sm font-bold md:font-normal">Evening</span>
                         <img src="${eveningData.condition.icon ? 'https:' + eveningData.condition.icon : ''}" alt="${eveningData.condition.text}" class="w-8 h-8">
-                        <span class="text-base font-medium md:text-sm md:font-normal">${eveningData.condition.text} ${eveningChance > 0 && eveningRain ? `<span class="text-gray-800/60">💧&nbsp;${eveningChance}% ${eveningRain}</span>` : ''}</span>
+                        <span class="text-base font-medium md:text-sm md:font-normal">${eveningData.condition.text} ${eveningRain ? `<span class="text-gray-800/60">💧&nbsp;${eveningChance}% ${eveningRain}</span>` : ''}</span>
                     </div>
                 </div>
             </div>
@@ -366,6 +364,40 @@ async function fetchAndProcessWeather(location, days) {
     }
 }
 
+function handleLocationClick() {
+    const modal = document.getElementById('city-selection-modal');
+    const cityList = document.getElementById('city-list');
+
+    // Clear any existing list items
+    cityList.innerHTML = '';
+
+    // Populate the list with cities
+    cities.forEach(city => {
+        const li = document.createElement('li');
+        li.textContent = city.name;
+        li.dataset.zip = city.zip;
+        li.className = 'p-2 rounded-lg hover:bg-blue-100 cursor-pointer transition-colors';
+        li.addEventListener('click', handleCitySelection);
+        cityList.appendChild(li);
+    });
+
+    modal.classList.remove('hidden');
+}
+
+function handleCitySelection(event) {
+    const zip = event.target.dataset.zip;
+    if (zip) {
+        // Update the URL without reloading the page, for bookmarking
+        const newUrl = `${window.location.pathname}?location=${zip}`;
+        window.history.pushState({ path: newUrl }, '', newUrl);
+
+        // Fetch new weather data
+        fetchAndProcessWeather(zip, 3);
+
+        // Hide the modal
+        document.getElementById('city-selection-modal').classList.add('hidden');
+    }
+}
 // Initial fetch when the DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
     const closeButton = document.querySelector('#message-box button');
@@ -392,6 +424,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const urlParams = new URLSearchParams(window.location.search);
     const locationParam = urlParams.get('location');
     const defaultLocation = '33598';
+
+    // Add event listener for the location header
+    document.getElementById('location-name').addEventListener('click', handleLocationClick);
+
+    // Add event listener for the new modal's close button
+    document.getElementById('close-city-modal-btn').addEventListener('click', () => {
+        document.getElementById('city-selection-modal').classList.add('hidden');
+    });
 
     fetchAndProcessWeather(locationParam || defaultLocation, 3);
 });
