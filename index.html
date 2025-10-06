@@ -40,7 +40,15 @@
             <p id="last-updated" class="text-sm text-gray-500"></p>
         </header>
 
-        <section id="weather-alerts" class="hidden mb-6 space-y-4">
+        <section id="weather-alerts" class="hidden mb-6">
+            <div id="alerts-header" class="flex justify-between items-center cursor-pointer p-4 bg-yellow-100 border-l-4 border-yellow-500 rounded-lg shadow-md hover:bg-yellow-200 transition-colors">
+                 <h3 class="font-bold text-yellow-800">Weather Alerts</h3>
+                 <button id="toggle-alerts-btn" class="text-yellow-800 font-bold text-sm" aria-label="Toggle alerts visibility">Hide</button>
+            </div>
+            <!-- This div will hold the actual alert details and will be toggled -->
+            <div id="alerts-content" class="mt-4 space-y-4">
+                <!-- Alerts will be rendered here by JavaScript -->
+            </div>
         </section>
 
         <section id="current-weather" class="p-6 bg-blue-50 rounded-2xl shadow-inner mb-6 hidden">

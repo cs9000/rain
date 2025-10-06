@@ -200,12 +200,15 @@ function hideLoadingState() {
 }
 
 function renderAlerts(alerts) {
-    const alertsContainer = document.getElementById('weather-alerts');
-    alertsContainer.innerHTML = ''; // Clear old alerts
-    alertsContainer.classList.add('hidden');
+    const alertsSection = document.getElementById('weather-alerts');
+    const alertsContent = document.getElementById('alerts-content');
+    const toggleBtn = document.getElementById('toggle-alerts-btn');
+
+    alertsContent.innerHTML = ''; // Clear old alerts
+    alertsSection.classList.add('hidden');
 
     if (!alerts || alerts.length === 0) {
-        return; // No alerts to display
+        return;
     }
 
     const alertsHtml = alerts.map(alert => {
@@ -228,8 +231,12 @@ function renderAlerts(alerts) {
     `
     }).join('');
 
-    alertsContainer.innerHTML = alertsHtml;
-    alertsContainer.classList.remove('hidden');
+    alertsContent.innerHTML = alertsHtml;
+    alertsSection.classList.remove('hidden');
+
+    // Ensure content is visible and button text is correct when new alerts are loaded
+    alertsContent.classList.remove('hidden');
+    toggleBtn.textContent = 'Hide';
 }
 
 function renderCurrentWeather(currentData) {
@@ -432,6 +439,17 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('close-city-modal-btn').addEventListener('click', () => {
         document.getElementById('city-selection-modal').classList.add('hidden');
     });
+
+    // Add event listener for the new alerts toggle functionality
+    const alertsHeader = document.getElementById('alerts-header');
+    if (alertsHeader) {
+        alertsHeader.addEventListener('click', () => {
+            const alertsContent = document.getElementById('alerts-content');
+            const toggleBtn = document.getElementById('toggle-alerts-btn');
+            const isHidden = alertsContent.classList.toggle('hidden');
+            toggleBtn.textContent = isHidden ? 'Show' : 'Hide';
+        });
+    }
 
     fetchAndProcessWeather(locationParam || defaultLocation, 3);
 });
