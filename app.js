@@ -168,7 +168,7 @@ function handleCardClick(event) {
         }
 
         // On smaller and medium (tablet) screens, scroll down to the details section to provide feedback
-        if (window.innerWidth < 1024) { // 1024px is the 'lg' breakpoint in Tailwind
+        if (window.innerWidth < 1280) { // 1280px is the 'xl' breakpoint in Tailwind, covering tablets.
             const headerOffset = 80; // Provides space for a site header or just some breathing room
             const elementPosition = detailsContainer.getBoundingClientRect().top;
             const offsetPosition = elementPosition + window.scrollY - headerOffset;
