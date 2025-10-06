@@ -50,8 +50,8 @@ function renderDetailsTables() {
 
         return `
             <div class="mb-8 details-table-day hidden" data-day-index="${index}">
-                <div class="flex justify-between items-baseline mb-4">
-                    <h3 class="text-xl font-bold text-gray-800">${dayOfWeek}</h3>
+                <div class="flex flex-col sm:flex-row sm:justify-between sm:items-baseline mb-4">
+                    <h3 class="text-xl font-bold text-gray-800 mb-1 sm:mb-0">${dayOfWeek}</h3>
                     <p class="text-sm text-gray-600">Sunrise: <span class="font-medium">${day.astro.sunrise}</span> | Sunset: <span class="font-medium">${day.astro.sunset}</span></p>
                 </div>
                 <div class="mb-8">
