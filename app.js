@@ -306,17 +306,31 @@ function renderAlerts(alerts) {
     toggleBtn.textContent = 'Hide';
 }
 
-function renderCurrentWeather(currentData, gridpointData) {
+function renderCurrentWeather(latestObservation, hourlyPeriod, gridpointData) {
     const currentWeatherSection = document.getElementById('current-weather');
-    document.getElementById('current-temp').textContent = Math.round(currentData.temperature);
-    document.getElementById('current-condition-text').textContent = currentData.shortForecast;
-    const iconClass = getWeatherIconClass(currentData.shortForecast, currentData.isDaytime);
+
+    // Use the latest observation for the most accurate "now" data.
+    // The API provides values in metric, so we convert them.
+    const tempF = latestObservation.temperature.value * 9/5 + 32;
+    const dewpointF = latestObservation.dewpoint.value * 9/5 + 32;
+    const windSpeedMph = latestObservation.windSpeed.value * 0.621371;
+    const windGustMph = latestObservation.windGust.value ? latestObservation.windGust.value * 0.621371 : 0;
+
+    document.getElementById('current-temp').textContent = Math.round(tempF);
+    document.getElementById('current-condition-text').textContent = latestObservation.textDescription;
+    // Use the hourly forecast's isDaytime property to get the right icon (day/night)
+    const iconClass = getWeatherIconClass(latestObservation.textDescription, hourlyPeriod.isDaytime);
     document.getElementById('current-condition-icon').className = `text-6xl text-gray-700 ${iconClass}`;
+
+    // Format and display the "last updated" timestamp from the observation station.
+    const lastUpdatedDate = new Date(latestObservation.timestamp);
+    const formattedTime = lastUpdatedDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    document.getElementById('last-updated').textContent = `Updated from station at ${formattedTime}`;
 
     // Find the current hour's data from the more detailed gridpointData for humidity and dewpoint
     // CRITICAL: Convert the start time to a UTC-based timestamp by parsing it and then getting the UTC time.
     // This avoids timezone mismatches with the gridpoint data, which is in UTC.
-    const currentHourStartMs = new Date(currentData.startTime).getTime(); 
+    const currentHourStartMs = new Date(hourlyPeriod.startTime).getTime(); 
 
     // This robustly finds the corresponding value from the gridpoint data arrays (like dewpoint, humidity).
     // It correctly handles the UTC-based time intervals from the gridpoint endpoint.
@@ -337,30 +351,27 @@ function renderCurrentWeather(currentData, gridpointData) {
         return period?.value;
     };
 
-    const humidityValue = findCurrentGridValue(gridpointData.properties.relativeHumidity?.values);
-    const dewpointValueC = findCurrentGridValue(gridpointData.properties.dewpoint?.values);
+    // Use observation data for primary fields, fall back to forecast for others.
+    document.getElementById('current-feels-like').textContent = `${Math.round(latestObservation.heatIndex.value ? latestObservation.heatIndex.value * 9/5 + 32 : tempF)}°F`;
+    document.getElementById('current-wind').textContent = `${Math.round(windSpeedMph)} mph ${latestObservation.windDirection.value ? latestObservation.windDirection.value + '°' : ''}`;
+    document.getElementById('current-humidity').textContent = latestObservation.relativeHumidity.value ? `${Math.round(latestObservation.relativeHumidity.value)}%` : 'N/A';
+    document.getElementById('current-dew-point').textContent = `${Math.round(dewpointF)}°F`;
+    
+    // Chance of Rain is not in observations, so we get it from the hourly forecast period.
+    document.getElementById('current-chance-of-rain').textContent = `${hourlyPeriod.probabilityOfPrecipitation.value ?? 0}%`;
 
-    // Feels Like, Wind, and Humidity
-    document.getElementById('current-feels-like').textContent = `${Math.round(currentData.windChill?.value ?? currentData.temperature)}°F`;
-    document.getElementById('current-wind').textContent = `${currentData.windSpeed} ${currentData.windDirection}`;
-    document.getElementById('current-humidity').textContent = humidityValue ? `${Math.round(humidityValue)}%` : 'N/A';
-    document.getElementById('current-dew-point').textContent = dewpointValueC ? `${Math.round(dewpointValueC * 9 / 5 + 32)}°F` : 'N/A';
-    document.getElementById('current-chance-of-rain').textContent = `${currentData.probabilityOfPrecipitation.value ?? 0}%`;
-
-    // Format and display the "last updated" timestamp
-    const lastUpdatedDate = new Date(currentData.last_updated);
-    const formattedTime = lastUpdatedDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-    document.getElementById('last-updated').textContent = `Last updated at ${formattedTime}`;
-
-    // Wind Gusts: Find the current gust from the gridpoint data
-    const currentGustPeriodValue = findCurrentGridValue(gridpointData.properties.windGust?.values);
-
-    if (currentGustPeriodValue && currentGustPeriodValue > 0) {
-        // The API provides windGust in km/h. The conversion factor is ~0.621371.
-        const gustMph = Math.round(currentGustPeriodValue * 0.621371);
+    // Wind Gusts: Prioritize live observation, but fall back to the hourly forecast grid data if not available.
+    if (windGustMph > 0) {
+        const gustMph = Math.round(windGustMph);
         document.getElementById('current-gusts').textContent = `${gustMph} mph`;
     } else {
-        document.getElementById('current-gusts').textContent = 'N/A';
+        const currentGustPeriodValue = findCurrentGridValue(gridpointData.properties.windGust?.values);
+        if (currentGustPeriodValue && currentGustPeriodValue > 0) {
+            const gustMph = Math.round(currentGustPeriodValue * 0.621371); // Convert from km/h
+            document.getElementById('current-gusts').textContent = `${gustMph} mph`;
+        } else {
+            document.getElementById('current-gusts').textContent = 'N/A';
+        }
     }
     currentWeatherSection.classList.remove('hidden');
 }
@@ -566,45 +577,59 @@ async function fetchAndProcessWeather(city, days) {
 
     try {
         // Step 1: Get the gridpoints from lat/lon
-        const pointsUrl = `https://api.weather.gov/points/${city.lat},${city.lon}`;
-        const pointsResponse = await fetch(pointsUrl);
+        const pointsUrl = `https://api.weather.gov/points/${city.lat},${city.lon}`; // This rarely changes, so no-cache isn't critical here.
+        const pointsResponse = await fetch(pointsUrl, { cache: 'no-cache' });
         if (!pointsResponse.ok) throw new Error(`NWS points lookup failed: ${pointsResponse.status}`);
         const pointsData = await pointsResponse.json();
 
         const gridForecastUrl = pointsData.properties.forecast;
         const hourlyForecastUrl = pointsData.properties.forecastHourly;
         const gridpointDataUrl = pointsData.properties.forecastGridData; // Correct endpoint for precipitation
+        const stationsUrl = pointsData.properties.observationStations; // Endpoint to find nearby stations
         const alertsUrl = `https://api.weather.gov/alerts/active?point=${city.lat},${city.lon}`;
 
         // Step 2: Fetch grid, hourly, and alerts data in parallel
-        const [gridResponse, hourlyResponse, gridpointResponse, alertsResponse] = await Promise.all([
-            fetch(gridForecastUrl),
-            fetch(hourlyForecastUrl),
-            fetch(gridpointDataUrl),
-            fetch(alertsUrl)
+        const fetchOptions = { cache: 'no-cache' };
+        const responses = await Promise.all([
+            fetch(gridForecastUrl, fetchOptions),
+            fetch(hourlyForecastUrl, fetchOptions),
+            fetch(gridpointDataUrl, fetchOptions),
+            fetch(alertsUrl, fetchOptions),
+            fetch(stationsUrl, fetchOptions) // Fetch the list of stations
         ]);
+
+        const [gridResponse, hourlyResponse, gridpointResponse, alertsResponse, stationsResponse] = responses;
 
         if (!gridResponse.ok) throw new Error(`NWS grid forecast fetch failed: ${gridResponse.status}`);
         if (!hourlyResponse.ok) throw new Error(`NWS hourly forecast fetch failed: ${hourlyResponse.status}`);
         if (!gridpointResponse.ok) throw new Error(`NWS gridpoint data fetch failed: ${gridpointResponse.status}`);
         if (!alertsResponse.ok) throw new Error(`NWS alerts fetch failed: ${alertsResponse.status}`);
+        if (!stationsResponse.ok) throw new Error(`NWS stations lookup failed: ${stationsResponse.status}`);
 
         const gridData = await gridResponse.json();
         const hourlyData = await hourlyResponse.json();
         const gridpointData = await gridpointResponse.json();
         const alertsData = await alertsResponse.json();
+        const stationsData = await stationsResponse.json();
 
         rawApiResponseData = { grid: gridData, hourly: hourlyData, alerts: alertsData }; // Store for debugging
         correctForecastData = []; // Reset data
 
         document.getElementById('location-name').textContent = city.name.split(',')[0];
 
+        // Step 3: Get the latest observation from the nearest station
+        const closestStationUrl = stationsData.features[0].id + "/observations/latest";
+        const observationResponse = await fetch(closestStationUrl, fetchOptions);
+        if (!observationResponse.ok) throw new Error(`NWS latest observation fetch failed: ${observationResponse.status}`);
+        const latestObservationData = await observationResponse.json();
+
+        // Now we have all the data we need.
         correctForecastData = processNwsData(gridpointData, hourlyData, days);
-        const currentConditions = hourlyData.properties.periods[0];
-        currentConditions.last_updated = hourlyData.properties.updateTime;
+        const firstHourlyPeriod = hourlyData.properties.periods[0];
 
         renderAlerts(alertsData.features.map(f => f.properties));
-        renderCurrentWeather(currentConditions, gridpointData);
+        // Pass the fresh observation data AND the first hourly forecast period to the render function
+        renderCurrentWeather(latestObservationData.properties, firstHourlyPeriod, gridpointData);
         renderForecastCards(correctForecastData, days);
         renderDetailsTables();
 
