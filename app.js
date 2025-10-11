@@ -429,7 +429,10 @@ function processNwsData(gridpointData, hourlyData, days) {
     hourlyData.properties.periods.forEach((hour, index) => {
         const hourDateObj = new Date(hour.startTime);
         const hourTimeMs = hourDateObj.getTime();
-        const date = hourDateObj.toISOString().split('T')[0]; // Use UTC date for grouping
+        // CRITICAL FIX: Group hours by the local date of the forecast, not the UTC date.
+        // The startTime is an ISO string with timezone, e.g., "2024-07-26T21:00:00-04:00".
+        // Splitting by 'T' gives us the correct local date "2024-07-26".
+        const date = hour.startTime.split('T')[0];
         let isFirstHourLog = false;
 
         if (!forecastByDate[date]) {
