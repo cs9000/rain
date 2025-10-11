@@ -109,7 +109,7 @@ function renderDetailsTables() {
         const labels = day.hour.map(hour => new Date(hour.time).toLocaleTimeString('en-US', { hour: 'numeric' }));
         
         const rawPrecipData = day.hour.map(hour => hour.precip_in); // This will be mostly 0 now
-        const cappedPrecipData = rawPrecipData.map(p => Math.min(p, 0.5));
+        const cappedPrecipData = rawPrecipData.map(p => Math.min(p, 0.25));
 
         const backgroundColors = rawPrecipData.map(p => {
             if (p >= 1.0) return 'rgba(190, 24, 93, 0.7)';    // Fuchsia-700 for extreme rain
@@ -138,7 +138,7 @@ function renderDetailsTables() {
                 scales: {
                     y: {
                         beginAtZero: true,
-                        max: 0.5, // Fix the y-axis from 0 to 0.5 inch
+                        max: 0.25, // Fix the y-axis from 0 to 0.25 inch
                         title: {
                             display: true,
                             text: 'Precipitation (in)'
@@ -259,24 +259,62 @@ function renderAlerts(alerts) {
     toggleBtn.textContent = 'Hide';
 }
 
-function renderCurrentWeather(currentData) {
+function renderCurrentWeather(currentData, gridpointData) {
     const currentWeatherSection = document.getElementById('current-weather');
     document.getElementById('current-temp').textContent = Math.round(currentData.temperature);
     document.getElementById('current-condition-text').textContent = currentData.shortForecast;
     document.getElementById('current-condition-icon').src = currentData.icon;
     document.getElementById('current-condition-icon').alt = currentData.shortForecast;
+
+    // Find the current hour's data from the more detailed gridpointData for humidity and dewpoint
+    // CRITICAL: Convert the start time to a UTC-based timestamp by parsing it and then getting the UTC time.
+    // This avoids timezone mismatches with the gridpoint data, which is in UTC.
+    const currentHourStartMs = new Date(currentData.startTime).getTime(); 
+
+    // This robustly finds the corresponding value from the gridpoint data arrays (like dewpoint, humidity).
+    // It correctly handles the UTC-based time intervals from the gridpoint endpoint.
+    const findCurrentGridValue = (values) => {
+        if (!values) return null;
+        const period = values.find(p => {
+            // The gridpoint data provides time intervals in ISO 8601 format, e.g., "2024-07-25T18:00:00+00:00/PT1H"
+            const [startIso, durationStr] = p.validTime.split('/');
+            if (!startIso || !durationStr) return false;
+
+            const periodStartMs = new Date(startIso).getTime();
+            const durationMatch = durationStr.match(/(\d+)/);
+            if (!durationMatch) return false; // Handle cases where duration might be malformed
+            const durationHours = parseInt(durationMatch[0]);
+            const periodEndMs = periodStartMs + (durationHours * 60 * 60 * 1000);
+            return currentHourStartMs >= periodStartMs && currentHourStartMs < periodEndMs;
+        });
+        return period?.value;
+    };
+
+    const humidityValue = findCurrentGridValue(gridpointData.properties.relativeHumidity?.values);
+    const dewpointValueC = findCurrentGridValue(gridpointData.properties.dewpoint?.values);
+
+    // Feels Like, Wind, and Humidity
     document.getElementById('current-feels-like').textContent = `${Math.round(currentData.windChill?.value ?? currentData.temperature)}°F`;
     document.getElementById('current-wind').textContent = `${currentData.windSpeed} ${currentData.windDirection}`;
-    document.getElementById('current-gusts').textContent = `-- mph`; // NWS hourly doesn't provide gusts easily
-    document.getElementById('current-humidity').textContent = `${Math.round(currentData.relativeHumidity.value)}%`;
-    document.getElementById('current-uv').textContent = '--'; // NWS doesn't provide UV index
-    document.getElementById('current-visibility').textContent = `-- mi`; // NWS doesn't provide visibility
+    document.getElementById('current-humidity').textContent = humidityValue ? `${Math.round(humidityValue)}%` : 'N/A';
+    document.getElementById('current-dew-point').textContent = dewpointValueC ? `${Math.round(dewpointValueC * 9 / 5 + 32)}°F` : 'N/A';
+    document.getElementById('current-chance-of-rain').textContent = `${currentData.probabilityOfPrecipitation.value ?? 0}%`;
 
     // Format and display the "last updated" timestamp
     const lastUpdatedDate = new Date(currentData.last_updated);
     const formattedTime = lastUpdatedDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
     document.getElementById('last-updated').textContent = `Last updated at ${formattedTime}`;
 
+    // Wind Gusts: Find the current gust from the gridpoint data
+    const currentGustPeriodValue = findCurrentGridValue(gridpointData.properties.windGust?.values);
+
+    if (currentGustPeriodValue && currentGustPeriodValue > 0) {
+        // The API provides windGust in km/h. The conversion factor is ~0.621371.
+        const gustMph = Math.round(currentGustPeriodValue * 0.621371);
+        document.getElementById('current-gusts').textContent = `${gustMph} mph`;
+    } else {
+        document.getElementById('current-gusts').textContent = 'N/A';
+    }
     currentWeatherSection.classList.remove('hidden');
 }
 
@@ -516,7 +554,7 @@ async function fetchAndProcessWeather(city, days) {
         currentConditions.last_updated = hourlyData.properties.updateTime;
 
         renderAlerts(alertsData.features.map(f => f.properties));
-        renderCurrentWeather(currentConditions);
+        renderCurrentWeather(currentConditions, gridpointData);
         renderForecastCards(correctForecastData, days);
         renderDetailsTables();
 
