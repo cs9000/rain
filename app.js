@@ -369,7 +369,14 @@ function renderCurrentWeather(latestObservation, hourlyPeriod, gridpointData) {
     const windDirectionCardinal = degreesToCardinal(latestObservation.windDirection.value);
     document.getElementById('current-feels-like').textContent = `${Math.round(latestObservation.heatIndex.value ? latestObservation.heatIndex.value * 9/5 + 32 : tempF)}°F`;
     document.getElementById('current-wind').textContent = `${Math.round(windSpeedMph)} mph ${windDirectionCardinal}`;
-    document.getElementById('current-humidity').textContent = latestObservation.relativeHumidity.value ? `${Math.round(latestObservation.relativeHumidity.value)}%` : 'N/A';
+    
+    // Humidity: Prioritize live observation, but fall back to the hourly forecast grid data if not available.
+    if (latestObservation.relativeHumidity.value) {
+        document.getElementById('current-humidity').textContent = `${Math.round(latestObservation.relativeHumidity.value)}%`;
+    } else {
+        const humidityValue = findCurrentGridValue(gridpointData.properties.relativeHumidity?.values);
+        document.getElementById('current-humidity').textContent = humidityValue ? `${Math.round(humidityValue)}%` : 'N/A';
+    }
     document.getElementById('current-dew-point').textContent = `${Math.round(dewpointF)}°F`;
     
     // Chance of Rain is not in observations, so we get it from the hourly forecast period.
@@ -469,69 +476,64 @@ function renderForecastCards(forecastData, days) {
     });
 }
 
-function processNwsData(gridpointData, hourlyData, days) {
+function processNwsData(gridData, gridpointData, hourlyData, days, pointsData) {
     const forecastByDate = {};
     
     // ===================================================================================
-    // START: REWRITTEN LOGIC
+    // START: Data Processing Logic
     // ===================================================================================
 
-    console.log("--- STARTING PRECIPITATION PROCESSING ---");
-
-    // Step 1: Parse the 6-hour precipitation blocks from gridData.
-    // CRITICAL FIX: Convert all timestamps to UTC milliseconds for reliable comparison,
-    // which avoids all timezone-related bugs.
+    // Step 2: Parse the 6-hour precipitation blocks from gridData.
     const precipPeriods = [];
     const qpfData = gridpointData.properties.quantitativePrecipitation?.values || [];
     for (const period of qpfData) {
         const [startIso, durationStr] = period.validTime.split('/');
         if (!startIso || !durationStr) continue; // Skip malformed periods
-        const durationHours = parseInt(durationStr.match(/(\d+)/)[0]);
+        const durationHours = parseInt((durationStr.match(/(\d+)/) || ['1'])[0]); // Default to 1 to prevent crash
         const startTimeMs = new Date(startIso).getTime();
         const endTimeMs = startTimeMs + durationHours * 60 * 60 * 1000;
         // Distribute the 6-hour total evenly across the hours and convert from mm to inches.
         const hourlyPrecipAmount = (period.value / 25.4) / durationHours;
         precipPeriods.push({ startTimeMs, endTimeMs, hourlyPrecipAmount });
     }
-    console.log(`[1] Parsed ${precipPeriods.length} precipitation periods from the API.`, precipPeriods);
 
     const hasPrecipitationData = precipPeriods.length > 0 && precipPeriods.some(p => p.hourlyPrecipAmount > 0);
 
-    // Step 2: Iterate through the hourly forecast data and build the daily structure.
-    console.log(`[2] Processing ${hourlyData.properties.periods.length} hourly forecast periods.`);
-    hourlyData.properties.periods.forEach((hour, index) => {
+    // Step 3: Iterate through the hourly forecast data and build the daily structure.
+    // Use a for...of loop so we can 'break' out of it once we have enough days.
+    for (const hour of hourlyData.properties.periods) {
         const hourDateObj = new Date(hour.startTime);
         const hourTimeMs = hourDateObj.getTime();
-        // CRITICAL FIX: Group hours by the local date of the forecast, not the UTC date.
-        // The startTime is an ISO string with timezone, e.g., "2024-07-26T21:00:00-04:00".
-        // Splitting by 'T' gives us the correct local date "2024-07-26".
-        const date = hour.startTime.split('T')[0];
-        let isFirstHourLog = false;
+        // Use the local date from the timestamp, which we will use for display. The astro lookup will use UTC.
+        const displayDate = hour.startTime.substring(0, 10);
+        // CRITICAL: Define the UTC date key *before* using it for lookups.
+        const date = hourDateObj.toISOString().substring(0, 10);
+
+        // Stop processing if we've already collected the required number of days plus one buffer day.
+        if (Object.keys(forecastByDate).length > days) break;
 
         if (!forecastByDate[date]) {
+            // DEFINITIVE FIX: Use SunCalc library to calculate astro data based on the date and location's coordinates.
+            // This is far more reliable than trying to parse it from the NWS API.
+            const lat = parseFloat(pointsData.properties.relativeLocation.geometry.coordinates[1]);
+            const lon = parseFloat(pointsData.properties.relativeLocation.geometry.coordinates[0]);
+            const sunTimes = SunCalc.getTimes(hourDateObj, lat, lon);
+            const sunrise = sunTimes.sunrise.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+            const sunset = sunTimes.sunset.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+
             forecastByDate[date] = {
-                date: date,
+                date: displayDate, // Use the local date for card grouping
                 day: { daily_chance_of_rain: 0, maxTemp: -Infinity, minTemp: Infinity },
-                astro: { sunrise: 'N/A', sunset: 'N/A' },
+                astro: { sunrise: sunrise, sunset: sunset },
                 hour: [],
                 hasPrecipitationData: hasPrecipitationData
             };
-            isFirstHourLog = true;
         }
 
-        // Step 3: For each hour, find its corresponding 6-hour precipitation block.
+        // Step 4: For each hour, find its corresponding 6-hour precipitation block.
         let precip_in = 0;
         const relevantPeriod = precipPeriods.find(p => hourTimeMs >= p.startTimeMs && hourTimeMs < p.endTimeMs);
-        if (relevantPeriod) {
-            if (isFirstHourLog) { // Log details only for the first hour of a new day to avoid spamming the console
-                console.log(`[3] MATCH FOUND for hour ${hour.startTime} (Timestamp: ${hourTimeMs})`);
-                console.log(`    - Matched against precip period: Start ${relevantPeriod.startTimeMs}, End ${relevantPeriod.endTimeMs}`);
-                console.log(`    - Assigning hourly precip value: ${relevantPeriod.hourlyPrecipAmount.toFixed(4)} inches.`);
-            }
-            precip_in = relevantPeriod.hourlyPrecipAmount;
-        } else if (isFirstHourLog && precipPeriods.length > 0) {
-            console.log(`[3] NO MATCH for hour ${hour.startTime} (Timestamp: ${hourTimeMs}). This may be expected if it's outside a rain period.`);
-        }
+        if (relevantPeriod) precip_in = relevantPeriod.hourlyPrecipAmount;
 
         forecastByDate[date].hour.push({
             time: hour.startTime,
@@ -540,29 +542,12 @@ function processNwsData(gridpointData, hourlyData, days) {
             precip_in: precip_in,
             temperature: hour.temperature
         });
-    });
-
-    // Step 4: Now that all hours are grouped by day, calculate daily summaries.
-    const sortedForecast = Object.values(forecastByDate).sort((a, b) => new Date(a.date) - new Date(b.date));
-    console.log("[4] Final grouped and sorted forecast data:", sortedForecast);
-
-    // ===================================================================================
-    // START: DEBUGGING CHECK
-    // ===================================================================================
-    const totalPrecip = sortedForecast.reduce((sum, day) => sum + day.hour.reduce((daySum, h) => daySum + h.precip_in, 0), 0);
-    if (totalPrecip === 0 && hasPrecipitationData) {
-        console.warn("DEBUG: Rainfall calculation resulted in all zeros, but precipitation data was found. Logging diagnostic info.");
-        console.log("  - Raw Precipitation Data (qpfData):", JSON.parse(JSON.stringify(qpfData)));
-        console.log("  - Processed Precipitation Periods (precipPeriods with ms timestamps):", JSON.parse(JSON.stringify(precipPeriods)));
-        console.log("  - First 5 Hourly Forecast Periods (hourlyData):", JSON.parse(JSON.stringify(hourlyData.properties.periods.slice(0, 5))));
     }
-    console.log(`--- FINISHED PRECIPITATION PROCESSING --- Total calculated precip: ${totalPrecip.toFixed(4)} inches.`);
 
-    // ===================================================================================
-    // END: DEBUGGING CHECK
-    // ===================================================================================
+    // Step 5: Now that all hours are grouped by day, calculate daily summaries.
+    const sortedForecast = Object.values(forecastByDate).sort((a, b) => new Date(a.date) - new Date(b.date));
 
-    sortedForecast.forEach(dayData => {
+    for (const dayData of sortedForecast) {
         let maxTemp = -Infinity, minTemp = Infinity, maxChance = 0;
         dayData.hour.forEach(h => {
             if (h.temperature > maxTemp) maxTemp = h.temperature;
@@ -572,16 +557,12 @@ function processNwsData(gridpointData, hourlyData, days) {
         dayData.day.maxTemp = maxTemp;
         dayData.day.minTemp = minTemp;
         dayData.day.daily_chance_of_rain = maxChance;
-    });
-
-    // ===================================================================================
-    // END: REWRITTEN LOGIC
-    // ===================================================================================
+    }
 
     return sortedForecast.slice(0, days);
 }
 
-async function fetchAndProcessWeather(city, days) {
+async function fetchAndProcessWeather(city, days, pointsDataCache = null) {
     if (!city || !city.lat || !city.lon) {
         console.error("Invalid city object provided:", city);
         showMessage('Error', 'Invalid location data. Cannot fetch weather.');
@@ -592,16 +573,23 @@ async function fetchAndProcessWeather(city, days) {
 
     try {
         // Step 1: Get the gridpoints from lat/lon
-        const pointsUrl = `https://api.weather.gov/points/${city.lat},${city.lon}`; // This rarely changes, so no-cache isn't critical here.
-        const pointsResponse = await fetch(pointsUrl, { cache: 'no-cache' });
-        if (!pointsResponse.ok) throw new Error(`NWS points lookup failed: ${pointsResponse.status}`);
-        const pointsData = await pointsResponse.json();
+        let pointsData = pointsDataCache;
+        if (!pointsData) {
+            const pointsUrl = `https://api.weather.gov/points/${city.lat},${city.lon}`;
+            const pointsResponse = await fetch(pointsUrl, { cache: 'no-cache' });
+            if (!pointsResponse.ok) throw new Error(`NWS points lookup failed: ${pointsResponse.status}`);
+            pointsData = await pointsResponse.json();
+        }
 
+        // The rest of the URLs are derived from the pointsData
         const gridForecastUrl = pointsData.properties.forecast;
         const hourlyForecastUrl = pointsData.properties.forecastHourly;
-        const gridpointDataUrl = pointsData.properties.forecastGridData; // Correct endpoint for precipitation
         const stationsUrl = pointsData.properties.observationStations; // Endpoint to find nearby stations
         const alertsUrl = `https://api.weather.gov/alerts/active?point=${city.lat},${city.lon}`;
+        // CRITICAL FIX: The `forecastGridData` URL is for precipitation only. The full gridpoint data,
+        // including astronomical info, must be fetched from the base gridpoints URL.
+        const { gridId, gridX, gridY } = pointsData.properties;
+        const gridpointDataUrl = `https://api.weather.gov/gridpoints/${gridId}/${gridX},${gridY}`;
 
         // Step 2: Fetch grid, hourly, and alerts data in parallel
         const fetchOptions = { cache: 'no-cache' };
@@ -627,19 +615,19 @@ async function fetchAndProcessWeather(city, days) {
         const alertsData = await alertsResponse.json();
         const stationsData = await stationsResponse.json();
 
-        rawApiResponseData = { grid: gridData, hourly: hourlyData, alerts: alertsData }; // Store for debugging
+        rawApiResponseData = { grid: gridData, gridpoint: gridpointData, hourly: hourlyData, alerts: alertsData }; // Store for debugging
         correctForecastData = []; // Reset data
 
         document.getElementById('location-name').textContent = city.name.split(',')[0];
 
         // Step 3: Get the latest observation from the nearest station
-        const closestStationUrl = stationsData.features[0].id + "/observations/latest";
+        const closestStationUrl = stationsData.observationStations[0] + "/observations/latest";
         const observationResponse = await fetch(closestStationUrl, fetchOptions);
         if (!observationResponse.ok) throw new Error(`NWS latest observation fetch failed: ${observationResponse.status}`);
         const latestObservationData = await observationResponse.json();
 
         // Now we have all the data we need.
-        correctForecastData = processNwsData(gridpointData, hourlyData, days);
+        correctForecastData = processNwsData(gridData, gridpointData, hourlyData, days, pointsData);
         const firstHourlyPeriod = hourlyData.properties.periods[0];
 
         renderAlerts(alertsData.features.map(f => f.properties));
@@ -689,7 +677,7 @@ function handleCitySelection(event) {
         const newUrl = `${window.location.pathname}?location=${zip}`;
         window.history.pushState({ path: newUrl }, '', newUrl);
 
-        fetchAndProcessWeather(selectedCity, 3);
+        fetchAndProcessWeather(selectedCity, 3, null); // Pass null to force a new points lookup
 
         // Hide the modal
         document.getElementById('city-selection-modal').classList.add('hidden');
