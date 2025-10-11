@@ -512,7 +512,7 @@ function processNwsData(gridData, gridpointData, hourlyData, days, pointsData) {
         // Stop processing if we've already collected the required number of days plus one buffer day.
         if (Object.keys(forecastByDate).length > days) break;
 
-        if (!forecastByDate[date]) {
+        if (!forecastByDate[displayDate]) {
             // DEFINITIVE FIX: Use SunCalc library to calculate astro data based on the date and location's coordinates.
             // This is far more reliable than trying to parse it from the NWS API.
             const lat = parseFloat(pointsData.properties.relativeLocation.geometry.coordinates[1]);
@@ -521,7 +521,7 @@ function processNwsData(gridData, gridpointData, hourlyData, days, pointsData) {
             const sunrise = sunTimes.sunrise.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
             const sunset = sunTimes.sunset.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
 
-            forecastByDate[date] = {
+            forecastByDate[displayDate] = {
                 date: displayDate, // Use the local date for card grouping
                 day: { daily_chance_of_rain: 0, maxTemp: -Infinity, minTemp: Infinity },
                 astro: { sunrise: sunrise, sunset: sunset },
@@ -535,7 +535,7 @@ function processNwsData(gridData, gridpointData, hourlyData, days, pointsData) {
         const relevantPeriod = precipPeriods.find(p => hourTimeMs >= p.startTimeMs && hourTimeMs < p.endTimeMs);
         if (relevantPeriod) precip_in = relevantPeriod.hourlyPrecipAmount;
 
-        forecastByDate[date].hour.push({
+        forecastByDate[displayDate].hour.push({
             time: hour.startTime,
             condition: { text: hour.shortForecast, icon: hour.icon.replace(/size=small/g, 'size=medium') },
             chance_of_rain: hour.probabilityOfPrecipitation.value ?? 0,
