@@ -78,6 +78,20 @@ function getWeatherIconClass(forecast, isDay) {
     return `wi wi-${time}-cloudy`;
 }
 
+/**
+ * Converts a degree value to a 16-point cardinal direction string.
+ * @param {number} deg - The degree value (0-360).
+ * @returns {string} The cardinal direction (e.g., 'N', 'NNE', 'SW').
+ */
+function degreesToCardinal(deg) {
+    if (deg === null || deg === undefined) return '';
+    // Ensure degrees are within the 0-359 range
+    const degree = (deg + 360) % 360;
+    const dirs = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+    // Each of the 16 directions covers a 22.5 degree slice (360 / 16 = 22.5)
+    const index = Math.round(degree / 22.5) % 16;
+    return dirs[index];
+}
 
 function calculateRainfallValue(hourlyData, startHour, endHour) {
     let totalRain = 0;
@@ -352,8 +366,9 @@ function renderCurrentWeather(latestObservation, hourlyPeriod, gridpointData) {
     };
 
     // Use observation data for primary fields, fall back to forecast for others.
+    const windDirectionCardinal = degreesToCardinal(latestObservation.windDirection.value);
     document.getElementById('current-feels-like').textContent = `${Math.round(latestObservation.heatIndex.value ? latestObservation.heatIndex.value * 9/5 + 32 : tempF)}°F`;
-    document.getElementById('current-wind').textContent = `${Math.round(windSpeedMph)} mph ${latestObservation.windDirection.value ? latestObservation.windDirection.value + '°' : ''}`;
+    document.getElementById('current-wind').textContent = `${Math.round(windSpeedMph)} mph ${windDirectionCardinal}`;
     document.getElementById('current-humidity').textContent = latestObservation.relativeHumidity.value ? `${Math.round(latestObservation.relativeHumidity.value)}%` : 'N/A';
     document.getElementById('current-dew-point').textContent = `${Math.round(dewpointF)}°F`;
     
