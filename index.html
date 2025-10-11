@@ -10,6 +10,7 @@
     <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/weather-icons/2.0.10/css/weather-icons.min.css">
     <style>
         body {
             font-family: 'Inter', sans-serif;
@@ -61,7 +62,7 @@
                     <span id="current-condition-text" class="text-lg text-gray-600 -mt-1">--</span>
                 </div>
                 <div class="col-span-1 flex items-center justify-center">
-                    <img id="current-condition-icon" src="" alt="Current weather condition" class="w-24 h-24">
+                    <i id="current-condition-icon" class="text-6xl text-gray-700"></i>
                 </div>
                 <div class="col-span-2 md:col-span-2 grid grid-cols-2 gap-x-8 gap-y-2 text-sm">
                     <div class="flex justify-between">

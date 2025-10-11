@@ -32,6 +32,53 @@ function getLocalHourFromISO(isoString) {
     return parseInt(isoString.substring(11, 13), 10);
 }
 
+/**
+ * Maps NWS forecast text to a corresponding Weather Icons class.
+ * @param {string} forecast - The short forecast string from the NWS API.
+ * @param {boolean} isDay - True if it's daytime, false for night.
+ * @returns {string} The appropriate Weather Icons class name (e.g., 'wi wi-day-sunny').
+ */
+function getWeatherIconClass(forecast, isDay) {
+    if (!forecast) return 'wi wi-na'; // Return 'not available' icon if no forecast
+
+    const f = forecast.toLowerCase();
+    const time = isDay ? 'day' : 'night';
+
+    // Thunderstorms
+    if (f.includes('thunderstorm')) {
+        if (f.includes('showers')) return `wi wi-${time}-storm-showers`;
+        return `wi wi-${time}-thunderstorm`;
+    }
+    // Rain/Drizzle/Showers
+    if (f.includes('showers')) return `wi wi-${time}-showers`;
+    if (f.includes('rain') || f.includes('drizzle')) return `wi wi-${time}-rain`;
+
+    // Snow/Sleet
+    if (f.includes('snow')) return `wi wi-${time}-snow`;
+    if (f.includes('sleet')) return `wi wi-${time}-sleet`;
+
+    // Fog/Haze/Smoke
+    if (f.includes('fog')) return `wi wi-${time}-fog`;
+    if (f.includes('haze') || f.includes('smoke')) return 'wi wi-smoke';
+
+    // Cloudy
+    if (f.includes('mostly cloudy')) return `wi wi-${time}-cloudy`;
+    if (f.includes('partly cloudy') || f.includes('partly sunny')) return `wi wi-${time}-cloudy`;
+    if (f.includes('cloudy')) return 'wi wi-cloudy';
+
+    // Sunny/Clear
+    if (f.includes('mostly sunny')) return `wi wi-${time}-sunny`;
+    if (f.includes('sunny')) return `wi wi-${time}-sunny`;
+    if (f.includes('clear')) return `wi wi-${time}-clear`;
+
+    // Wind
+    if (f.includes('windy') || f.includes('breezy')) return `wi wi-${time}-windy`;
+
+    // Default fallback
+    return `wi wi-${time}-cloudy`;
+}
+
+
 function calculateRainfallValue(hourlyData, startHour, endHour) {
     let totalRain = 0;
     for (const hour of hourlyData) {
@@ -263,8 +310,8 @@ function renderCurrentWeather(currentData, gridpointData) {
     const currentWeatherSection = document.getElementById('current-weather');
     document.getElementById('current-temp').textContent = Math.round(currentData.temperature);
     document.getElementById('current-condition-text').textContent = currentData.shortForecast;
-    document.getElementById('current-condition-icon').src = currentData.icon;
-    document.getElementById('current-condition-icon').alt = currentData.shortForecast;
+    const iconClass = getWeatherIconClass(currentData.shortForecast, currentData.isDaytime);
+    document.getElementById('current-condition-icon').className = `text-6xl text-gray-700 ${iconClass}`;
 
     // Find the current hour's data from the more detailed gridpointData for humidity and dewpoint
     // CRITICAL: Convert the start time to a UTC-based timestamp by parsing it and then getting the UTC time.
@@ -371,17 +418,17 @@ function renderForecastCards(forecastData, days) {
                 <div class="mt-4 space-y-2">
                     <div class="grid grid-cols-[60px,32px,1fr] items-center gap-2">
                         <span class="text-sm font-bold md:font-normal">Morning</span>
-                        <img src="${morningData.condition.icon ? morningData.condition.icon : ''}" alt="${morningData.condition.text}" class="w-8 h-8">
+                        <i class="${getWeatherIconClass(morningData.condition.text, true)} text-2xl text-center"></i>
                         <span class="text-base font-medium md:text-sm md:font-normal">${morningData.condition.text} ${morningRain ? `<span class="text-gray-800/60">💧&nbsp;${morningChance}% ${morningRain}</span>` : ''}</span>
                     </div>
                     <div class="grid grid-cols-[60px,32px,1fr] items-center gap-2">
                         <span class="text-sm font-bold md:font-normal">Afternoon</span>
-                        <img src="${afternoonData.condition.icon ? afternoonData.condition.icon : ''}" alt="${afternoonData.condition.text}" class="w-8 h-8">
+                        <i class="${getWeatherIconClass(afternoonData.condition.text, true)} text-2xl text-center"></i>
                         <span class="text-base font-medium md:text-sm md:font-normal">${afternoonData.condition.text} ${afternoonRain ? `<span class="text-gray-800/60">💧&nbsp;${afternoonChance}% ${afternoonRain}</span>` : ''}</span>
                     </div>
                     <div class="grid grid-cols-[60px,32px,1fr] items-center gap-2">
                         <span class="text-sm font-bold md:font-normal">Evening</span>
-                        <img src="${eveningData.condition.icon ? eveningData.condition.icon : ''}" alt="${eveningData.condition.text}" class="w-8 h-8">
+                        <i class="${getWeatherIconClass(eveningData.condition.text, false)} text-2xl text-center"></i>
                         <span class="text-base font-medium md:text-sm md:font-normal">${eveningData.condition.text} ${eveningRain ? `<span class="text-gray-800/60">💧&nbsp;${eveningChance}% ${eveningRain}</span>` : ''}</span>
                     </div>
                 </div>
