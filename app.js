@@ -1,13 +1,15 @@
 let correctForecastData = null;
 let rawApiResponseData = null;
 
-// Predefined list of cities and their corresponding zip codes
+// Predefined list of cities with coordinates. NWS API uses lat/lon.
 const cities = [
-    { name: 'Dexter', zip: '04930' },
-    { name: 'Moorestown', zip: '08057' },
-    { name: 'Weston', zip: '06883' },
-    { name: 'Wimauma', zip: '33598' }
+    { name: 'Dexter, ME', zip: '04930', lat: '45.02', lon: '-69.29' },
+    { name: 'Moorestown, NJ', zip: '08057', lat: '39.96', lon: '-74.94' },
+    { name: 'Weston, CT', zip: '06883', lat: '41.20', lon: '-73.38' },
+    { name: 'Wimauma, FL', zip: '33598', lat: '27.71', lon: '-82.30' }
 ];
+
+const defaultCity = cities[3]; // Wimauma, FL
 
 function showMessage(title, content) {
     document.getElementById('message-title').textContent = title;
@@ -19,11 +21,23 @@ function hideMessage() {
     document.getElementById('message-box').classList.add('hidden');
 }
 
+/**
+ * Parses an ISO 8601 timestamp string and returns the hour in that timestamp's specific timezone.
+ * This avoids issues where the user's browser timezone differs from the forecast location's timezone.
+ * Example: "2024-01-01T08:30:00-05:00" will correctly return 8.
+ * @param {string} isoString - The ISO 8601 timestamp.
+ * @returns {number} The hour (0-23) from the timestamp.
+ */
+function getLocalHourFromISO(isoString) {
+    return parseInt(isoString.substring(11, 13), 10);
+}
+
 function calculateRainfallValue(hourlyData, startHour, endHour) {
     let totalRain = 0;
-    for (let i = startHour; i <= endHour; i++) {
-        if (hourlyData[i]) {
-            totalRain += hourlyData[i].precip_in;
+    for (const hour of hourlyData) {
+        const localHour = getLocalHourFromISO(hour.time);
+        if (localHour >= startHour && localHour <= endHour) {
+            totalRain += (hour.precip_in || 0);
         }
     }
     return totalRain;
@@ -31,9 +45,13 @@ function calculateRainfallValue(hourlyData, startHour, endHour) {
 
 function getPeriodChanceOfRain(hourlyData, startHour, endHour) {
     let maxChance = 0;
-    for (let i = startHour; i <= endHour; i++) {
-        if (hourlyData[i] && hourlyData[i].chance_of_rain > maxChance) {
-            maxChance = hourlyData[i].chance_of_rain;
+    const relevantHours = hourlyData.filter(h => {
+        const localHour = getLocalHourFromISO(h.time);
+        return localHour >= startHour && localHour <= endHour;
+    });
+    for (const hour of relevantHours) {
+        if (hour.chance_of_rain > maxChance) {
+            maxChance = hour.chance_of_rain;
         }
     }
     return maxChance;
@@ -49,7 +67,7 @@ function renderDetailsTables() {
         const dayOfWeek = new Date(day.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long' });
 
         return `
-            <div class="mb-8 details-table-day hidden" data-day-index="${index}">
+            <div class="mb-8 details-table-day hidden" data-day-index="${index}" data-has-precip="${day.hasPrecipitationData}">
                 <div class="flex flex-col sm:flex-row sm:justify-between sm:items-baseline mb-4">
                     <h3 class="text-xl font-bold text-gray-800 mb-1 sm:mb-0">${dayOfWeek}</h3>
                     <p class="text-sm text-gray-600">Sunrise: <span class="font-medium">${day.astro.sunrise}</span> | Sunset: <span class="font-medium">${day.astro.sunset}</span></p>
@@ -64,7 +82,7 @@ function renderDetailsTables() {
                                 <th class="py-3 px-2 sm:px-4 text-sm font-semibold text-gray-600 uppercase tracking-wider text-center sm:text-left rounded-tl-xl">Time</th> 
                                 <th class="py-3 px-2 sm:px-4 text-sm font-semibold text-gray-600 uppercase tracking-wider">Condition</th>
                                 <th class="py-3 px-2 sm:px-4 text-sm font-semibold text-gray-600 uppercase tracking-wider text-center">Rain (%)</th>
-                                <th class="py-3 px-2 sm:px-4 text-sm font-semibold text-gray-600 uppercase tracking-wider text-center rounded-tr-xl">Rain (in)</th>
+                                <th class="py-3 px-2 sm:px-4 text-sm font-semibold text-gray-600 uppercase tracking-wider text-center rounded-tr-xl precip-amount-header">Rain (in)</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -72,8 +90,8 @@ function renderDetailsTables() {
                                 <tr class="border-t border-gray-200 hover:bg-gray-50 transition-colors">
                                     <td class="py-3 px-2 sm:px-4 font-medium text-gray-900 text-sm text-center sm:text-left">${new Date(hour.time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</td>
                                     <td class="py-3 px-2 sm:px-4 text-gray-700 text-sm">${hour.condition.text}</td> 
-                                    <td class="py-3 px-2 sm:px-4 text-gray-700 text-sm text-center">${hour.chance_of_rain}</td> 
-                                    <td class="py-3 px-2 sm:px-4 text-gray-700 text-sm text-center">${hour.precip_in.toFixed(2)}</td>
+                                    <td class="py-3 px-2 sm:px-4 text-gray-700 text-sm text-center">${hour.chance_of_rain ?? 0}</td> 
+                                    <td class="py-3 px-2 sm:px-4 text-gray-700 text-sm text-center precip-amount-cell">${hour.precip_in.toFixed(2)}</td>
                                 </tr>
                             `).join('')}
                         </tbody>
@@ -90,7 +108,7 @@ function renderDetailsTables() {
         const ctx = document.getElementById(`chart-day-${index}`).getContext('2d');
         const labels = day.hour.map(hour => new Date(hour.time).toLocaleTimeString('en-US', { hour: 'numeric' }));
         
-        const rawPrecipData = day.hour.map(hour => hour.precip_in);
+        const rawPrecipData = day.hour.map(hour => hour.precip_in); // This will be mostly 0 now
         const cappedPrecipData = rawPrecipData.map(p => Math.min(p, 0.5));
 
         const backgroundColors = rawPrecipData.map(p => {
@@ -161,10 +179,12 @@ function handleCardClick(event) {
         document.querySelector(`.details-table-day[data-day-index="${dayIndex}"]`).classList.remove('hidden');
         detailsContainer.classList.remove('hidden');
 
-        // Populate the raw JSON output but keep it hidden
+        // Populate and show the raw JSON output
         if (rawApiResponseData) {
             jsonOutput.textContent = JSON.stringify(rawApiResponseData, null, 2);
+            jsonOutput.classList.remove('hidden');
             jsonContainer.classList.remove('hidden'); // Show the section with the "Show" button
+            document.getElementById('toggle-json-btn').textContent = 'Hide';
         }
 
         // On smaller and medium (tablet) screens, scroll down to the details section to provide feedback
@@ -226,7 +246,7 @@ function renderAlerts(alerts) {
         return `
         <div class="p-4 border-l-4 rounded-r-lg shadow-md ${alertClasses}">
             <p class="font-bold">${alert.headline}</p>
-            <p class="text-sm mt-2">${alert.desc}</p>
+            <div class="text-sm mt-2" style="white-space: pre-wrap;">${alert.description}</div>
         </div>
     `
     }).join('');
@@ -241,16 +261,16 @@ function renderAlerts(alerts) {
 
 function renderCurrentWeather(currentData) {
     const currentWeatherSection = document.getElementById('current-weather');
-    document.getElementById('current-temp').textContent = Math.round(currentData.temp_f);
-    document.getElementById('current-condition-text').textContent = currentData.condition.text;
-    document.getElementById('current-condition-icon').src = 'https:' + currentData.condition.icon;
-    document.getElementById('current-condition-icon').alt = currentData.condition.text;
-    document.getElementById('current-feels-like').textContent = `${Math.round(currentData.feelslike_f)}°F`;
-    document.getElementById('current-wind').textContent = `${Math.round(currentData.wind_mph)} mph ${currentData.wind_dir}`;
-    document.getElementById('current-gusts').textContent = `${Math.round(currentData.gust_mph)} mph`;
-    document.getElementById('current-humidity').textContent = `${currentData.humidity}%`;
-    document.getElementById('current-uv').textContent = currentData.uv;
-    document.getElementById('current-visibility').textContent = `${currentData.vis_miles} mi`;
+    document.getElementById('current-temp').textContent = Math.round(currentData.temperature);
+    document.getElementById('current-condition-text').textContent = currentData.shortForecast;
+    document.getElementById('current-condition-icon').src = currentData.icon;
+    document.getElementById('current-condition-icon').alt = currentData.shortForecast;
+    document.getElementById('current-feels-like').textContent = `${Math.round(currentData.windChill?.value ?? currentData.temperature)}°F`;
+    document.getElementById('current-wind').textContent = `${currentData.windSpeed} ${currentData.windDirection}`;
+    document.getElementById('current-gusts').textContent = `-- mph`; // NWS hourly doesn't provide gusts easily
+    document.getElementById('current-humidity').textContent = `${Math.round(currentData.relativeHumidity.value)}%`;
+    document.getElementById('current-uv').textContent = '--'; // NWS doesn't provide UV index
+    document.getElementById('current-visibility').textContent = `-- mi`; // NWS doesn't provide visibility
 
     // Format and display the "last updated" timestamp
     const lastUpdatedDate = new Date(currentData.last_updated);
@@ -283,15 +303,19 @@ function renderForecastCards(forecastData, days) {
         const eveningRainValue = calculateRainfallValue(day.hour, 18, 23);
         const totalDailyRain = morningRainValue + afternoonRainValue + eveningRainValue;
 
-        const morningData = day.hour[10] ?? fallbackCondition;
+        // Find a representative hour for each period. Fallback to the first available hour of the day if the target hour is in the past.
+        const findHour = (targetHour) => day.hour.find(h => getLocalHourFromISO(h.time) === targetHour);
+
+        const morningData = findHour(10) ?? (i === 0 ? day.hour[0] : null) ?? fallbackCondition;
         const morningRain = morningRainValue > 0 ? `${morningRainValue.toFixed(2)} in` : '';
         const morningChance = getPeriodChanceOfRain(day.hour, 6, 11);
 
-        const afternoonData = day.hour[15] ?? fallbackCondition;
+        // For afternoon, if 3 PM is not available, try 1 PM.
+        const afternoonData = findHour(15) ?? findHour(13) ?? (i === 0 ? day.hour.find(h => getLocalHourFromISO(h.time) >= 12) : null) ?? fallbackCondition;
         const afternoonRain = afternoonRainValue > 0 ? `${afternoonRainValue.toFixed(2)} in` : '';
         const afternoonChance = getPeriodChanceOfRain(day.hour, 12, 17);
 
-        const eveningData = day.hour[20] ?? fallbackCondition;
+        const eveningData = findHour(20) ?? findHour(18) ?? (i === 0 ? day.hour.find(h => getLocalHourFromISO(h.time) >= 17) : null) ?? fallbackCondition;
         const eveningRain = eveningRainValue > 0 ? `${eveningRainValue.toFixed(2)} in` : '';
         const eveningChance = getPeriodChanceOfRain(day.hour, 18, 23);
 
@@ -300,26 +324,26 @@ function renderForecastCards(forecastData, days) {
                 <div class="flex flex-col items-start">
                     <h2 class="text-3xl font-bold">${dayOfWeek}</h2>
                     <div class="flex items-baseline space-x-2 flex-wrap">
-                        <span class="text-xl font-bold">${Math.round(day.day.mintemp_f)}° / ${Math.round(day.day.maxtemp_f)}°</span>
+                        <span class="text-xl font-bold">${Math.round(day.day.minTemp)}° / ${Math.round(day.day.maxTemp)}°</span>
                         <span class="text-sm font-medium text-gray-800/80">💧 ${day.day.daily_chance_of_rain}%</span>
-                        ${totalDailyRain > 0 ? `<span class="text-sm font-medium text-gray-800/80">${totalDailyRain.toFixed(2)} in</span>` : ''}
+                        ${day.hasPrecipitationData && totalDailyRain > 0 ? `<span class="text-sm font-medium text-gray-800/80">${totalDailyRain.toFixed(2)} in</span>` : ''}
                     </div>
                 </div>
                 
                 <div class="mt-4 space-y-2">
                     <div class="grid grid-cols-[60px,32px,1fr] items-center gap-2">
                         <span class="text-sm font-bold md:font-normal">Morning</span>
-                        <img src="${morningData.condition.icon ? 'https:' + morningData.condition.icon : ''}" alt="${morningData.condition.text}" class="w-8 h-8">
+                        <img src="${morningData.condition.icon ? morningData.condition.icon : ''}" alt="${morningData.condition.text}" class="w-8 h-8">
                         <span class="text-base font-medium md:text-sm md:font-normal">${morningData.condition.text} ${morningRain ? `<span class="text-gray-800/60">💧&nbsp;${morningChance}% ${morningRain}</span>` : ''}</span>
                     </div>
                     <div class="grid grid-cols-[60px,32px,1fr] items-center gap-2">
                         <span class="text-sm font-bold md:font-normal">Afternoon</span>
-                        <img src="${afternoonData.condition.icon ? 'https:' + afternoonData.condition.icon : ''}" alt="${afternoonData.condition.text}" class="w-8 h-8">
+                        <img src="${afternoonData.condition.icon ? afternoonData.condition.icon : ''}" alt="${afternoonData.condition.text}" class="w-8 h-8">
                         <span class="text-base font-medium md:text-sm md:font-normal">${afternoonData.condition.text} ${afternoonRain ? `<span class="text-gray-800/60">💧&nbsp;${afternoonChance}% ${afternoonRain}</span>` : ''}</span>
                     </div>
                     <div class="grid grid-cols-[60px,32px,1fr] items-center gap-2">
                         <span class="text-sm font-bold md:font-normal">Evening</span>
-                        <img src="${eveningData.condition.icon ? 'https:' + eveningData.condition.icon : ''}" alt="${eveningData.condition.text}" class="w-8 h-8">
+                        <img src="${eveningData.condition.icon ? eveningData.condition.icon : ''}" alt="${eveningData.condition.text}" class="w-8 h-8">
                         <span class="text-base font-medium md:text-sm md:font-normal">${eveningData.condition.text} ${eveningRain ? `<span class="text-gray-800/60">💧&nbsp;${eveningChance}% ${eveningRain}</span>` : ''}</span>
                     </div>
                 </div>
@@ -334,35 +358,168 @@ function renderForecastCards(forecastData, days) {
     });
 }
 
-async function fetchAndProcessWeather(location, days) {
-    const apiKey = '7b2406496cd94d9f8ad151853252208';
-    // Request one more day than needed to handle late-night scenarios where 'today' might be dropped.
-    const url = `https://api.weatherapi.com/v1/forecast.json?key=${apiKey}&q=${location}&days=${days + 1}&aqi=no&alerts=yes`;
+function processNwsData(gridpointData, hourlyData, days) {
+    const forecastByDate = {};
+    
+    // ===================================================================================
+    // START: REWRITTEN LOGIC
+    // ===================================================================================
+
+    console.log("--- STARTING PRECIPITATION PROCESSING ---");
+
+    // Step 1: Parse the 6-hour precipitation blocks from gridData.
+    // CRITICAL FIX: Convert all timestamps to UTC milliseconds for reliable comparison,
+    // which avoids all timezone-related bugs.
+    const precipPeriods = [];
+    const qpfData = gridpointData.properties.quantitativePrecipitation?.values || [];
+    for (const period of qpfData) {
+        const [startIso, durationStr] = period.validTime.split('/');
+        if (!startIso || !durationStr) continue; // Skip malformed periods
+        const durationHours = parseInt(durationStr.match(/(\d+)/)[0]);
+        const startTimeMs = new Date(startIso).getTime();
+        const endTimeMs = startTimeMs + durationHours * 60 * 60 * 1000;
+        // Distribute the 6-hour total evenly across the hours and convert from mm to inches.
+        const hourlyPrecipAmount = (period.value / 25.4) / durationHours;
+        precipPeriods.push({ startTimeMs, endTimeMs, hourlyPrecipAmount });
+    }
+    console.log(`[1] Parsed ${precipPeriods.length} precipitation periods from the API.`, precipPeriods);
+
+    const hasPrecipitationData = precipPeriods.length > 0 && precipPeriods.some(p => p.hourlyPrecipAmount > 0);
+
+    // Step 2: Iterate through the hourly forecast data and build the daily structure.
+    console.log(`[2] Processing ${hourlyData.properties.periods.length} hourly forecast periods.`);
+    hourlyData.properties.periods.forEach((hour, index) => {
+        const hourDateObj = new Date(hour.startTime);
+        const hourTimeMs = hourDateObj.getTime();
+        const date = hourDateObj.toISOString().split('T')[0]; // Use UTC date for grouping
+        let isFirstHourLog = false;
+
+        if (!forecastByDate[date]) {
+            forecastByDate[date] = {
+                date: date,
+                day: { daily_chance_of_rain: 0, maxTemp: -Infinity, minTemp: Infinity },
+                astro: { sunrise: 'N/A', sunset: 'N/A' },
+                hour: [],
+                hasPrecipitationData: hasPrecipitationData
+            };
+            isFirstHourLog = true;
+        }
+
+        // Step 3: For each hour, find its corresponding 6-hour precipitation block.
+        let precip_in = 0;
+        const relevantPeriod = precipPeriods.find(p => hourTimeMs >= p.startTimeMs && hourTimeMs < p.endTimeMs);
+        if (relevantPeriod) {
+            if (isFirstHourLog) { // Log details only for the first hour of a new day to avoid spamming the console
+                console.log(`[3] MATCH FOUND for hour ${hour.startTime} (Timestamp: ${hourTimeMs})`);
+                console.log(`    - Matched against precip period: Start ${relevantPeriod.startTimeMs}, End ${relevantPeriod.endTimeMs}`);
+                console.log(`    - Assigning hourly precip value: ${relevantPeriod.hourlyPrecipAmount.toFixed(4)} inches.`);
+            }
+            precip_in = relevantPeriod.hourlyPrecipAmount;
+        } else if (isFirstHourLog && precipPeriods.length > 0) {
+            console.log(`[3] NO MATCH for hour ${hour.startTime} (Timestamp: ${hourTimeMs}). This may be expected if it's outside a rain period.`);
+        }
+
+        forecastByDate[date].hour.push({
+            time: hour.startTime,
+            condition: { text: hour.shortForecast, icon: hour.icon.replace(/size=small/g, 'size=medium') },
+            chance_of_rain: hour.probabilityOfPrecipitation.value ?? 0,
+            precip_in: precip_in,
+            temperature: hour.temperature
+        });
+    });
+
+    // Step 4: Now that all hours are grouped by day, calculate daily summaries.
+    const sortedForecast = Object.values(forecastByDate).sort((a, b) => new Date(a.date) - new Date(b.date));
+    console.log("[4] Final grouped and sorted forecast data:", sortedForecast);
+
+    // ===================================================================================
+    // START: DEBUGGING CHECK
+    // ===================================================================================
+    const totalPrecip = sortedForecast.reduce((sum, day) => sum + day.hour.reduce((daySum, h) => daySum + h.precip_in, 0), 0);
+    if (totalPrecip === 0 && hasPrecipitationData) {
+        console.warn("DEBUG: Rainfall calculation resulted in all zeros, but precipitation data was found. Logging diagnostic info.");
+        console.log("  - Raw Precipitation Data (qpfData):", JSON.parse(JSON.stringify(qpfData)));
+        console.log("  - Processed Precipitation Periods (precipPeriods with ms timestamps):", JSON.parse(JSON.stringify(precipPeriods)));
+        console.log("  - First 5 Hourly Forecast Periods (hourlyData):", JSON.parse(JSON.stringify(hourlyData.properties.periods.slice(0, 5))));
+    }
+    console.log(`--- FINISHED PRECIPITATION PROCESSING --- Total calculated precip: ${totalPrecip.toFixed(4)} inches.`);
+
+    // ===================================================================================
+    // END: DEBUGGING CHECK
+    // ===================================================================================
+
+    sortedForecast.forEach(dayData => {
+        let maxTemp = -Infinity, minTemp = Infinity, maxChance = 0;
+        dayData.hour.forEach(h => {
+            if (h.temperature > maxTemp) maxTemp = h.temperature;
+            if (h.temperature < minTemp) minTemp = h.temperature;
+            if (h.chance_of_rain > maxChance) maxChance = h.chance_of_rain;
+        });
+        dayData.day.maxTemp = maxTemp;
+        dayData.day.minTemp = minTemp;
+        dayData.day.daily_chance_of_rain = maxChance;
+    });
+
+    // ===================================================================================
+    // END: REWRITTEN LOGIC
+    // ===================================================================================
+
+    return sortedForecast.slice(0, days);
+}
+
+async function fetchAndProcessWeather(city, days) {
+    if (!city || !city.lat || !city.lon) {
+        console.error("Invalid city object provided:", city);
+        showMessage('Error', 'Invalid location data. Cannot fetch weather.');
+        return;
+    }
 
     showLoadingState();
 
     try {
-        const response = await fetch(url);
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        const data = await response.json();
-        rawApiResponseData = data;
+        // Step 1: Get the gridpoints from lat/lon
+        const pointsUrl = `https://api.weather.gov/points/${city.lat},${city.lon}`;
+        const pointsResponse = await fetch(pointsUrl);
+        if (!pointsResponse.ok) throw new Error(`NWS points lookup failed: ${pointsResponse.status}`);
+        const pointsData = await pointsResponse.json();
+
+        const gridForecastUrl = pointsData.properties.forecast;
+        const hourlyForecastUrl = pointsData.properties.forecastHourly;
+        const gridpointDataUrl = pointsData.properties.forecastGridData; // Correct endpoint for precipitation
+        const alertsUrl = `https://api.weather.gov/alerts/active?point=${city.lat},${city.lon}`;
+
+        // Step 2: Fetch grid, hourly, and alerts data in parallel
+        const [gridResponse, hourlyResponse, gridpointResponse, alertsResponse] = await Promise.all([
+            fetch(gridForecastUrl),
+            fetch(hourlyForecastUrl),
+            fetch(gridpointDataUrl),
+            fetch(alertsUrl)
+        ]);
+
+        if (!gridResponse.ok) throw new Error(`NWS grid forecast fetch failed: ${gridResponse.status}`);
+        if (!hourlyResponse.ok) throw new Error(`NWS hourly forecast fetch failed: ${hourlyResponse.status}`);
+        if (!gridpointResponse.ok) throw new Error(`NWS gridpoint data fetch failed: ${gridpointResponse.status}`);
+        if (!alertsResponse.ok) throw new Error(`NWS alerts fetch failed: ${alertsResponse.status}`);
+
+        const gridData = await gridResponse.json();
+        const hourlyData = await hourlyResponse.json();
+        const gridpointData = await gridpointResponse.json();
+        const alertsData = await alertsResponse.json();
+
+        rawApiResponseData = { grid: gridData, hourly: hourlyData, alerts: alertsData }; // Store for debugging
         correctForecastData = []; // Reset data
 
-        // Update the location name in the header
-        document.getElementById('location-name').textContent = data.location.name;
+        document.getElementById('location-name').textContent = city.name.split(',')[0];
 
-        // The API response's first forecast day is always "today" for the requested location.
-        // We simply slice from the beginning of the array to get the correct number of days.
-        correctForecastData = data.forecast.forecastday.slice(0, days);
-        
-        // Render all the UI components with the new data
-        renderAlerts(data.alerts.alert);
-        renderCurrentWeather(data.current);
+        correctForecastData = processNwsData(gridpointData, hourlyData, days);
+        const currentConditions = hourlyData.properties.periods[0];
+        currentConditions.last_updated = hourlyData.properties.updateTime;
+
+        renderAlerts(alertsData.features.map(f => f.properties));
+        renderCurrentWeather(currentConditions);
         renderForecastCards(correctForecastData, days);
         renderDetailsTables();
-        
+
     } catch (error) {
         console.error("Could not fetch weather data:", error);
         showMessage('Error', 'Failed to fetch weather data. Please check your connection or API key.');
@@ -381,7 +538,7 @@ function handleLocationClick() {
     // Populate the list with cities
     cities.forEach(city => {
         const li = document.createElement('li');
-        li.textContent = city.name;
+        li.textContent = city.name.replace(',', ', ');
         li.dataset.zip = city.zip;
         li.className = 'p-2 rounded-lg hover:bg-blue-100 cursor-pointer transition-colors';
         li.addEventListener('click', handleCitySelection);
@@ -394,12 +551,17 @@ function handleLocationClick() {
 function handleCitySelection(event) {
     const zip = event.target.dataset.zip;
     if (zip) {
+        const selectedCity = cities.find(c => c.zip === zip);
+        if (!selectedCity) return;
+
+        // Immediately update the header to reflect the user's choice
+        document.getElementById('location-name').textContent = selectedCity.name.split(',')[0];
+
         // Update the URL without reloading the page, for bookmarking
         const newUrl = `${window.location.pathname}?location=${zip}`;
         window.history.pushState({ path: newUrl }, '', newUrl);
 
-        // Fetch new weather data
-        fetchAndProcessWeather(zip, 3);
+        fetchAndProcessWeather(selectedCity, 3);
 
         // Hide the modal
         document.getElementById('city-selection-modal').classList.add('hidden');
@@ -416,40 +578,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const jsonOutput = document.getElementById('raw-json-output');
     toggleJsonBtn.addEventListener('click', () => {
         const isHidden = jsonOutput.classList.toggle('hidden');
-        if (isHidden) {
-            toggleJsonBtn.textContent = 'Show';
-        } else {
-            toggleJsonBtn.textContent = 'Hide';
-        }
+        toggleJsonBtn.textContent = isHidden ? 'Show' : 'Hide';
     });
 
-    // Hide the JSON output by default when the page loads
-    jsonOutput.classList.add('hidden');
-    toggleJsonBtn.textContent = 'Show';
-
-    // Check for a 'location' URL parameter, otherwise use the default.
-    const urlParams = new URLSearchParams(window.location.search);
-    const locationParam = urlParams.get('location');
-    const defaultLocation = '33598';
-
-    // Add event listener for the location header
+    const initialCity = cities.find(c => c.zip === new URLSearchParams(window.location.search).get('location')) || defaultCity;
+    document.getElementById('location-name').textContent = initialCity.name.split(',')[0];
     document.getElementById('location-name').addEventListener('click', handleLocationClick);
-
-    // Add event listener for the new modal's close button
-    document.getElementById('close-city-modal-btn').addEventListener('click', () => {
-        document.getElementById('city-selection-modal').classList.add('hidden');
+    document.getElementById('close-city-modal-btn').addEventListener('click', () => document.getElementById('city-selection-modal').classList.add('hidden'));
+    document.getElementById('alerts-header')?.addEventListener('click', () => {
+        const isHidden = document.getElementById('alerts-content').classList.toggle('hidden');
+        document.getElementById('toggle-alerts-btn').textContent = isHidden ? 'Show' : 'Hide';
     });
 
-    // Add event listener for the new alerts toggle functionality
-    const alertsHeader = document.getElementById('alerts-header');
-    if (alertsHeader) {
-        alertsHeader.addEventListener('click', () => {
-            const alertsContent = document.getElementById('alerts-content');
-            const toggleBtn = document.getElementById('toggle-alerts-btn');
-            const isHidden = alertsContent.classList.toggle('hidden');
-            toggleBtn.textContent = isHidden ? 'Show' : 'Hide';
-        });
-    }
-
-    fetchAndProcessWeather(locationParam || defaultLocation, 3);
+    fetchAndProcessWeather(initialCity, 3);
 });
