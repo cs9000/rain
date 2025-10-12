@@ -452,17 +452,17 @@ function renderForecastCards(forecastData, days) {
                     <div class="grid grid-cols-[60px,32px,1fr] items-center gap-2">
                         <span class="text-sm font-bold md:font-normal">Morning</span>
                         <i class="${getWeatherIconClass(morningData.condition.text, true)} text-2xl text-center"></i>
-                        <span class="text-base font-medium md:text-sm md:font-normal">${morningData.condition.text} ${morningRain ? `<span class="text-gray-800/60">💧&nbsp;${morningChance}% ${morningRain}</span>` : ''}</span>
+                        <span class="text-base font-medium md:text-sm md:font-normal">${morningData.condition.text} ${morningRain ? `<span class="block sm:inline text-gray-800/60 whitespace-nowrap">💧&nbsp;${morningChance}% ${morningRain}</span>` : ''}</span>
                     </div>
                     <div class="grid grid-cols-[60px,32px,1fr] items-center gap-2">
                         <span class="text-sm font-bold md:font-normal">Afternoon</span>
                         <i class="${getWeatherIconClass(afternoonData.condition.text, true)} text-2xl text-center"></i>
-                        <span class="text-base font-medium md:text-sm md:font-normal">${afternoonData.condition.text} ${afternoonRain ? `<span class="text-gray-800/60">💧&nbsp;${afternoonChance}% ${afternoonRain}</span>` : ''}</span>
+                        <span class="text-base font-medium md:text-sm md:font-normal">${afternoonData.condition.text} ${afternoonRain ? `<span class="block sm:inline text-gray-800/60 whitespace-nowrap">💧&nbsp;${afternoonChance}% ${afternoonRain}</span>` : ''}</span>
                     </div>
                     <div class="grid grid-cols-[60px,32px,1fr] items-center gap-2">
                         <span class="text-sm font-bold md:font-normal">Evening</span>
                         <i class="${getWeatherIconClass(eveningData.condition.text, false)} text-2xl text-center"></i>
-                        <span class="text-base font-medium md:text-sm md:font-normal">${eveningData.condition.text} ${eveningRain ? `<span class="text-gray-800/60">💧&nbsp;${eveningChance}% ${eveningRain}</span>` : ''}</span>
+                        <span class="text-base font-medium md:text-sm md:font-normal">${eveningData.condition.text} ${eveningRain ? `<span class="block sm:inline text-gray-800/60 whitespace-nowrap">💧&nbsp;${eveningChance}% ${eveningRain}</span>` : ''}</span>
                     </div>
                 </div>
             </div>
