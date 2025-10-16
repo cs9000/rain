@@ -39,7 +39,8 @@ function getLocalHourFromISO(isoString) {
  * @returns {string} The appropriate Weather Icons class name (e.g., 'wi wi-day-sunny').
  */
 function getWeatherIconClass(forecast, isDay) {
-    if (!forecast) return 'wi wi-na'; // Return 'not available' icon if no forecast
+    if (forecast === '') return ''; // Return empty string for intentionally blank forecasts
+    if (!forecast) return 'wi wi-na'; // Return 'not available' icon for missing data
 
     const f = forecast.toLowerCase();
     const time = isDay ? 'day' : 'night';
@@ -415,24 +416,27 @@ function renderForecastCards(forecastData, days) {
         const dayOfWeek = date.toLocaleDateString('en-US', { weekday: 'long' });
         
         const fallbackCondition = { condition: { icon: '', text: 'No data' } };
+        const blankCondition = { condition: { text: '' } }; // For blanking out past periods on the current day
 
         const morningRainValue = calculateRainfallValue(day.hour, 6, 11);
         const afternoonRainValue = calculateRainfallValue(day.hour, 12, 17);
         const eveningRainValue = calculateRainfallValue(day.hour, 18, 23);
         const totalDailyRain = morningRainValue + afternoonRainValue + eveningRainValue;
 
-        // Find a representative hour for each period. Fallback to the first available hour of the day if the target hour is in the past.
+        // Find a representative hour for each period.
         const findHour = (targetHour) => day.hour.find(h => getLocalHourFromISO(h.time) === targetHour);
 
-        const morningData = findHour(10) ?? (i === 0 ? day.hour[0] : null) ?? fallbackCondition;
+        // For morning, try 10 AM. If it's the current day (i=0) and 10 AM is past, use a blank object. Otherwise, use the fallback for future days.
+        const morningData = findHour(10) ?? (i === 0 ? blankCondition : fallbackCondition);
         const morningRain = morningRainValue > 0 ? `${morningRainValue.toFixed(2)} in` : '';
         const morningChance = getPeriodChanceOfRain(day.hour, 6, 11);
 
-        // For afternoon, if 3 PM is not available, try 1 PM.
-        const afternoonData = findHour(15) ?? findHour(13) ?? (i === 0 ? day.hour.find(h => getLocalHourFromISO(h.time) >= 12) : null) ?? fallbackCondition;
+        // For afternoon, try 3 PM then 1 PM. If it's the current day and those are past, use a blank object. Otherwise, use the fallback.
+        const afternoonData = findHour(15) ?? findHour(13) ?? (i === 0 ? blankCondition : fallbackCondition);
         const afternoonRain = afternoonRainValue > 0 ? `${afternoonRainValue.toFixed(2)} in` : '';
         const afternoonChance = getPeriodChanceOfRain(day.hour, 12, 17);
 
+        // For evening, if the primary hours are past, we can safely fall back to the next available hour since it's still "evening".
         const eveningData = findHour(20) ?? findHour(18) ?? (i === 0 ? day.hour.find(h => getLocalHourFromISO(h.time) >= 17) : null) ?? fallbackCondition;
         const eveningRain = eveningRainValue > 0 ? `${eveningRainValue.toFixed(2)} in` : '';
         const eveningChance = getPeriodChanceOfRain(day.hour, 18, 23);
