@@ -264,6 +264,10 @@ function handleCardClick(event) {
 }
 
 function showLoadingState() {
+    // Update header to show a loading message
+    document.getElementById('location-name').textContent = 'Please wait...';
+    document.getElementById('last-updated').textContent = '';
+
     const weatherCardsContainer = document.getElementById('weather-cards');
     weatherCardsContainer.innerHTML = `<div id="loading-spinner" class="col-span-1 md:col-span-3 text-center p-8"><div class="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]" role="status"><span class="!absolute !-m-px !h-px !w-px !overflow-hidden !whitespace-nowrap !border-0 !p-0 ![clip:rect(0,0,0,0)]">Loading...</span></div><p class="mt-4 text-gray-500">Loading weather data...</p></div>`;
 
