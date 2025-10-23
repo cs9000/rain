@@ -1,5 +1,4 @@
 let correctForecastData = null;
-let rawApiResponseData = null;
 
 // Predefined list of cities with coordinates. NWS API uses lat/lon.
 const cities = [
@@ -219,46 +218,40 @@ function handleCardClick(event) {
     const card = event.currentTarget;
     const dayIndex = card.dataset.dayIndex;
     const detailsContainer = document.getElementById('details-table-container');
-    const jsonContainer = document.getElementById('raw-json-container');
-    const jsonOutput = document.getElementById('raw-json-output');
+    const allDetailsTables = document.querySelectorAll('.details-table-day');
 
-    const isAlreadySelected = card.classList.contains('selected-card');
+    // Check if the details container is currently visible
+    const areDetailsVisible = !detailsContainer.classList.contains('hidden');
 
     // First, deselect all cards and hide all details
     document.querySelectorAll('.weather-card').forEach(c => c.classList.remove('selected-card'));
     document.querySelectorAll('.weather-card').forEach(c => c.setAttribute('aria-expanded', 'false'));
-    detailsContainer.classList.add('hidden');
-    jsonContainer.classList.add('hidden'); // Hide the entire JSON section by default
 
-    document.querySelectorAll('.details-table-day').forEach(table => table.classList.add('hidden'));
-    // If the clicked card was NOT already selected, then we show its details.
-    if (!isAlreadySelected) {
-        // Select the new card
+    // If details are visible, and we click any card, hide everything
+    if (areDetailsVisible) {
+        detailsContainer.classList.add('hidden');
+        allDetailsTables.forEach(table => table.classList.add('hidden'));
+        return; // Exit after hiding
+    }
+
+    // If details are not visible, show all details and select the clicked card
+    // Select the clicked card for scrolling purposes
+    if (card) {
         card.classList.add('selected-card');
         card.setAttribute('aria-expanded', 'true');
+    }
 
-        // Show the correct day's details table
-        document.querySelector(`.details-table-day[data-day-index="${dayIndex}"]`).classList.remove('hidden');
-        detailsContainer.classList.remove('hidden');
+    detailsContainer.classList.remove('hidden'); // Show the main container
+    allDetailsTables.forEach(table => table.classList.remove('hidden')); // Show all individual day details
 
-        // Populate and show the raw JSON output
-        if (rawApiResponseData) {
-            jsonOutput.textContent = JSON.stringify(rawApiResponseData, null, 2);
-            jsonOutput.classList.remove('hidden');
-            jsonContainer.classList.remove('hidden'); // Show the section with the "Show" button
-            document.getElementById('toggle-json-btn').textContent = 'Hide';
-        }
-
-        // On smaller and medium (tablet) screens, scroll down to the details section to provide feedback
-        if (window.innerWidth < 1280) { // 1280px is the 'xl' breakpoint in Tailwind, covering tablets.
-            const headerOffset = 80; // Provides space for a site header or just some breathing room
-            const elementPosition = detailsContainer.getBoundingClientRect().top;
+    // Scroll to just above the selected day's details
+    if (window.innerWidth < 1280) {
+        const selectedDayDetailsTable = document.querySelector(`.details-table-day[data-day-index="${dayIndex}"]`);
+        if (selectedDayDetailsTable) {
+            const headerOffset = 80;
+            const elementPosition = selectedDayDetailsTable.getBoundingClientRect().top;
             const offsetPosition = elementPosition + window.scrollY - headerOffset;
-          
-            window.scrollTo({
-                 top: offsetPosition,
-                 behavior: "smooth"
-            });
+            window.scrollTo({ top: offsetPosition, behavior: "smooth" });
         }
     }
 }
@@ -277,7 +270,6 @@ function showLoadingState() {
     const detailsContainer = document.getElementById('details-table-container');
     detailsContainer.innerHTML = '';
     detailsContainer.classList.add('hidden');
-    document.getElementById('raw-json-container').classList.add('hidden');
 }
 
 function hideLoadingState() {
@@ -622,8 +614,6 @@ async function fetchAndProcessWeather(city, days, pointsDataCache = null) {
         const gridpointData = await gridpointResponse.json();
         const alertsData = await alertsResponse.json();
         const stationsData = await stationsResponse.json();
-
-        rawApiResponseData = { grid: gridData, gridpoint: gridpointData, hourly: hourlyData, alerts: alertsData }; // Store for debugging
         correctForecastData = []; // Reset data
 
         document.getElementById('location-name').textContent = city.name.split(',')[0];
@@ -697,13 +687,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (closeButton) {
         closeButton.addEventListener('click', hideMessage);
     }
-
-    const toggleJsonBtn = document.getElementById('toggle-json-btn');
-    const jsonOutput = document.getElementById('raw-json-output');
-    toggleJsonBtn.addEventListener('click', () => {
-        const isHidden = jsonOutput.classList.toggle('hidden');
-        toggleJsonBtn.textContent = isHidden ? 'Show' : 'Hide';
-    });
 
     const initialCity = cities.find(c => c.zip === new URLSearchParams(window.location.search).get('location')) || defaultCity;
     document.getElementById('location-name').textContent = initialCity.name.split(',')[0];
