@@ -128,7 +128,7 @@ function renderDetailsTables() {
         const dayOfWeek = new Date(day.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long' });
 
         return `
-            <div class="mb-8 details-table-day hidden" data-day-index="${index}" data-has-precip="${day.hasPrecipitationData}">
+            <div class="mb-8 details-table-day hidden" data-day-index="${index}" data-chart-rendered="false">
                 <div class="flex flex-col sm:flex-row sm:justify-between sm:items-baseline mb-4">
                     <h3 class="text-xl font-bold text-gray-800 mb-1 sm:mb-0">${dayOfWeek}</h3>
                     <p class="text-sm text-gray-600">Sunrise: <span class="font-medium">${day.astro.sunrise}</span> | Sunset: <span class="font-medium">${day.astro.sunset}</span></p>
@@ -163,55 +163,6 @@ function renderDetailsTables() {
     }).join('');
 
     container.innerHTML = allDaysHtml;
-
-    // Now that the canvases are in the DOM, render the charts
-    correctForecastData.forEach((day, index) => {
-        const ctx = document.getElementById(`chart-day-${index}`).getContext('2d');
-        const labels = day.hour.map(hour => new Date(hour.time).toLocaleTimeString('en-US', { hour: 'numeric' }));
-        
-        const rawPrecipData = day.hour.map(hour => hour.precip_in); // This will be mostly 0 now
-        const cappedPrecipData = rawPrecipData.map(p => Math.min(p, 0.25));
-
-        const backgroundColors = rawPrecipData.map(p => {
-            if (p >= 1.0) return 'rgba(190, 24, 93, 0.7)';    // Fuchsia-700 for extreme rain
-            if (p > 0.3) return 'rgba(239, 68, 68, 0.6)';     // Red-500 for heavy rain
-            if (p > 0.1) return 'rgba(245, 158, 11, 0.6)';    // Orange-500 for moderate rain
-            return 'rgba(59, 130, 246, 0.6)';                // Blue-500 for light rain
-        });
-
-        new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: labels,
-                datasets: [{
-                    label: 'Hourly Precipitation (in)',
-                    data: cappedPrecipData,
-                    backgroundColor: backgroundColors,
-                    borderWidth: 0
-                }]
-            },
-            options: {
-                plugins: {
-                    legend: {
-                        display: false // Hide the legend as the colors are self-explanatory
-                    }
-                },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        max: 0.25, // Fix the y-axis from 0 to 0.25 inch
-                        title: {
-                            display: true,
-                            text: 'Precipitation (in)'
-                        }
-                    },
-                    x: {
-                        grid: { display: false } // Hide vertical grid lines for a cleaner look
-                    }
-                }
-            }
-        });
-    });
 }
 
 function handleCardClick(event) {
@@ -232,16 +183,75 @@ function handleCardClick(event) {
     detailsContainer.classList.remove('hidden'); // Show the main container
     allDetailsTables.forEach(table => table.classList.remove('hidden')); // Show all individual day details
 
-    // Scroll to just above the selected day's details on all devices.
-    const selectedDayDetailsTable = document.querySelector(`.details-table-day[data-day-index="${dayIndex}"]`);
-    if (selectedDayDetailsTable) {
-        // The offset provides some space above the scrolled-to element.
-        const headerOffset = 80; 
-        const elementPosition = selectedDayDetailsTable.getBoundingClientRect().top;
-        const offsetPosition = elementPosition + window.scrollY - headerOffset;
-        
-        window.scrollTo({ top: offsetPosition, behavior: "smooth" });
-    }
+    // DEFINITIVE FIX: Defer chart rendering until the container is visible.
+    // This prevents Chart.js from rendering into a 0x0 hidden canvas, which causes a layout
+    // shift and incorrect scroll position on the first click.
+    allDetailsTables.forEach((table, index) => {
+        if (table.dataset.chartRendered === 'false') {
+            const day = correctForecastData[index];
+            const ctx = document.getElementById(`chart-day-${index}`).getContext('2d');
+            const labels = day.hour.map(hour => new Date(hour.time).toLocaleTimeString('en-US', { hour: 'numeric' }));
+            const rawPrecipData = day.hour.map(hour => hour.precip_in);
+            const cappedPrecipData = rawPrecipData.map(p => Math.min(p, 0.25));
+            const backgroundColors = rawPrecipData.map(p => {
+                if (p >= 1.0) return 'rgba(190, 24, 93, 0.7)';
+                if (p > 0.3) return 'rgba(239, 68, 68, 0.6)';
+                if (p > 0.1) return 'rgba(245, 158, 11, 0.6)';
+                return 'rgba(59, 130, 246, 0.6)';
+            });
+
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Hourly Precipitation (in)',
+                        data: cappedPrecipData,
+                        backgroundColor: backgroundColors,
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    plugins: {
+                        animation: { duration: 0 }, // Keep animations off for instant render
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 0.25,
+                            title: { display: true, text: 'Precipitation (in)' }
+                        },
+                        x: { grid: { display: false } }
+                    }
+                }
+            });
+            table.dataset.chartRendered = 'true'; // Mark as rendered
+        }
+    });
+
+    // Now that charts are rendered (or were already rendered), we can safely scroll.
+    // A single requestAnimationFrame is sufficient here to ensure the scroll happens
+    // after the DOM is updated from the above logic, just before the next paint.
+    requestAnimationFrame(() => {
+        const selectedDayDetailsTable = document.querySelector(`.details-table-day[data-day-index="${dayIndex}"]`);
+        if (selectedDayDetailsTable) {
+            const headerOffset = 80; 
+            const elementPosition = selectedDayDetailsTable.getBoundingClientRect().top;
+            const offsetPosition = elementPosition + window.scrollY - headerOffset;
+            window.scrollTo({ top: offsetPosition, behavior: "smooth" });
+        }
+    });
+}
+
+function resetUIState() {
+    document.querySelectorAll('.weather-card').forEach(c => {
+        c.classList.remove('selected-card');
+        c.setAttribute('aria-expanded', 'false');
+    });
+    const detailsContainer = document.getElementById('details-table-container');
+    detailsContainer.innerHTML = '';
+    detailsContainer.classList.add('hidden');
 }
 
 function showLoadingState() {
@@ -255,9 +265,7 @@ function showLoadingState() {
     // Hide current weather and details sections
     document.getElementById('weather-alerts').classList.add('hidden');
     document.getElementById('current-weather').classList.add('hidden');
-    const detailsContainer = document.getElementById('details-table-container');
-    detailsContainer.innerHTML = '';
-    detailsContainer.classList.add('hidden');
+    resetUIState();
 }
 
 function hideLoadingState() {
@@ -663,7 +671,7 @@ function handleCitySelection(event) {
         const newUrl = `${window.location.pathname}?location=${zip}`;
         window.history.pushState({ path: newUrl }, '', newUrl);
 
-        fetchAndProcessWeather(selectedCity, 3, null); // Pass null to force a new points lookup
+        fetchAndProcessWeather(selectedCity, 3); // Pass null to force a new points lookup
 
         // Hide the modal
         document.getElementById('city-selection-modal').classList.add('hidden');
