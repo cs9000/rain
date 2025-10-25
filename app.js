@@ -343,7 +343,7 @@ function renderCurrentWeather(latestObservation, hourlyPeriod, gridpointData) {
     // Format and display the "last updated" timestamp from the observation station.
     const lastUpdatedDate = new Date(latestObservation.timestamp);
     const formattedTime = lastUpdatedDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-    document.getElementById('last-updated').textContent = `Updated from station at ${formattedTime}`;
+    document.getElementById('last-updated').textContent = `Updated at ${formattedTime}`;
 
     // Find the current hour's data from the more detailed gridpointData for humidity and dewpoint
     // CRITICAL: Convert the start time to a UTC-based timestamp by parsing it and then getting the UTC time.
@@ -436,6 +436,9 @@ function renderSevenDayPrecipitationChart(forecastData) {
         return 'rgba(59, 130, 246, 1)';
     });
 
+    const isMobile = window.innerWidth < 768; // Corresponds to Tailwind's 'md' breakpoint
+    const aspectRatio = isMobile ? 3.5 : 5.33; // Use a taller aspect ratio on mobile
+
     const ctx = document.getElementById('seven-day-precip-chart').getContext('2d');
     sevenDayChart = new Chart(ctx, {
         type: 'bar',
@@ -450,7 +453,7 @@ function renderSevenDayPrecipitationChart(forecastData) {
             }]
         },
         options: {
-            aspectRatio: 5.33, // Makes the chart wider than it is tall (width = 5.33 * height)
+            aspectRatio: aspectRatio,
             plugins: {
                 legend: { display: false }
             },
