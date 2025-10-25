@@ -1,4 +1,5 @@
 let correctForecastData = null;
+let sevenDayChart = null;
 
 // Predefined list of cities with coordinates. NWS API uses lat/lon.
 const cities = [
@@ -124,7 +125,10 @@ function renderDetailsTables() {
     
     if (!correctForecastData || correctForecastData.length === 0) return;
 
-    const allDaysHtml = correctForecastData.map((day, index) => {
+    // We fetch 7 days of data for the precip chart, but only want to show 3 days of details.
+    const detailsToRender = correctForecastData.slice(0, 3);
+
+    const allDaysHtml = detailsToRender.map((day, index) => {
         const dayOfWeek = new Date(day.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long' });
 
         return `
@@ -255,22 +259,29 @@ function resetUIState() {
 }
 
 function showLoadingState() {
-    // Update header to show a loading message
-    document.getElementById('location-name').textContent = 'Please wait...';
-    document.getElementById('last-updated').textContent = '';
+    const locationNameEl = document.getElementById('location-name');
 
+    // Update header to show a loading message
+    locationNameEl.textContent = 'Please wait...';
+    locationNameEl.classList.remove('cursor-pointer', 'hover:text-blue-600');
+    document.getElementById('last-updated').textContent = '';
+    
     const weatherCardsContainer = document.getElementById('weather-cards');
     weatherCardsContainer.innerHTML = `<div id="loading-spinner" class="col-span-1 md:col-span-3 text-center p-8"><div class="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]" role="status"><span class="!absolute !-m-px !h-px !w-px !overflow-hidden !whitespace-nowrap !border-0 !p-0 ![clip:rect(0,0,0,0)]">Loading...</span></div><p class="mt-4 text-gray-500">Loading weather data...</p></div>`;
 
     // Hide current weather and details sections
     document.getElementById('weather-alerts').classList.add('hidden');
     document.getElementById('current-weather').classList.add('hidden');
+    document.getElementById('seven-day-precip-chart-container').classList.add('hidden');
     resetUIState();
 }
 
 function hideLoadingState() {
     const loadingSpinner = document.getElementById('loading-spinner');
     if (loadingSpinner) loadingSpinner.remove();
+    // Restore clickable styles to the location name
+    const locationNameEl = document.getElementById('location-name');
+    locationNameEl.classList.add('cursor-pointer', 'hover:text-blue-600');
 }
 
 function renderAlerts(alerts) {
@@ -391,6 +402,66 @@ function renderCurrentWeather(latestObservation, hourlyPeriod, gridpointData) {
     currentWeatherSection.classList.remove('hidden');
 }
 
+function renderSevenDayPrecipitationChart(forecastData) {
+    const container = document.getElementById('seven-day-precip-chart-container');
+    if (!forecastData || forecastData.length === 0) {
+        container.classList.add('hidden');
+        return;
+    }
+
+    // CRITICAL FIX: Destroy the previous chart instance before creating a new one.
+    if (sevenDayChart) {
+        sevenDayChart.destroy();
+    }
+
+    const labels = forecastData.map(day => 
+        new Date(day.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short' })
+    );
+
+    const dailyTotals = forecastData.map(day => {
+        return day.hour.reduce((total, hour) => total + (hour.precip_in || 0), 0);
+    });
+
+    const backgroundColors = dailyTotals.map(total => {
+        if (total >= 1.0) return 'rgba(190, 24, 93, 0.7)';      // Very Heavy Rain (Pink-800)
+        if (total >= 0.5) return 'rgba(239, 68, 68, 0.7)';      // Heavy Rain (Red-500)
+        if (total >= 0.1) return 'rgba(245, 158, 11, 0.7)';     // Moderate Rain (Amber-500)
+        return 'rgba(59, 130, 246, 0.6)';                      // Light Rain (Blue-500)
+    });
+
+    const borderColors = dailyTotals.map(total => {
+        if (total >= 1.0) return 'rgba(190, 24, 93, 1)';
+        if (total >= 0.5) return 'rgba(239, 68, 68, 1)';
+        if (total >= 0.1) return 'rgba(245, 158, 11, 1)';
+        return 'rgba(59, 130, 246, 1)';
+    });
+
+    const ctx = document.getElementById('seven-day-precip-chart').getContext('2d');
+    sevenDayChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Total Precipitation (in)',
+                data: dailyTotals,
+                backgroundColor: backgroundColors,
+                borderColor: borderColors,
+                borderWidth: 1
+            }]
+        },
+        options: {
+            aspectRatio: 5.33, // Makes the chart wider than it is tall (width = 5.33 * height)
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                y: { beginAtZero: true, max: 1, title: { display: true, text: 'Inches' } }
+            }
+        }
+    });
+    container.classList.remove('hidden');
+}
+
 function renderForecastCards(forecastData, days) {
     const weatherCardsContainer = document.getElementById('weather-cards');
     weatherCardsContainer.innerHTML = ''; // Clear loading spinner or old cards
@@ -403,13 +474,15 @@ function renderForecastCards(forecastData, days) {
 
     const colors = ['from-red-200 to-orange-300', 'from-teal-200 to-cyan-300', 'from-purple-200 to-indigo-300'];
 
-    forecastData.forEach((day, i) => {
+    // We fetch 7 days of data for the precip chart, but only want to show 3 forecast cards.
+    const cardsToRender = forecastData.slice(0, 3);
+
+    cardsToRender.forEach((day, i) => {
         const date = new Date(day.date + 'T00:00:00');
         const dayOfWeek = date.toLocaleDateString('en-US', { weekday: 'long' });
         
         const fallbackCondition = { condition: { icon: '', text: 'No data' } };
         const blankCondition = { condition: { text: '' } }; // For blanking out past periods on the current day
-
         const morningRainValue = calculateRainfallValue(day.hour, 6, 11);
         const afternoonRainValue = calculateRainfallValue(day.hour, 12, 17);
         const eveningRainValue = calculateRainfallValue(day.hour, 18, 23);
@@ -584,7 +657,7 @@ async function fetchAndProcessWeather(city, days, pointsDataCache = null) {
         const alertsUrl = `https://api.weather.gov/alerts/active?point=${city.lat},${city.lon}`;
         // CRITICAL FIX: The `forecastGridData` URL is for precipitation only. The full gridpoint data,
         // including astronomical info, must be fetched from the base gridpoints URL.
-        const { gridId, gridX, gridY } = pointsData.properties;
+        const { gridId, gridX, gridY } = pointsData.properties; // This is correct.
         const gridpointDataUrl = `https://api.weather.gov/gridpoints/${gridId}/${gridX},${gridY}`;
 
         // Step 2: Fetch grid, hourly, and alerts data in parallel
@@ -612,7 +685,7 @@ async function fetchAndProcessWeather(city, days, pointsDataCache = null) {
         const stationsData = await stationsResponse.json();
         correctForecastData = []; // Reset data
 
-        document.getElementById('location-name').textContent = city.name.split(',')[0];
+        document.getElementById('location-name').textContent = city.name.split(',')[0]; // This will be set after loading.
 
         // Step 3: Get the latest observation from the nearest station
         const closestStationUrl = stationsData.observationStations[0] + "/observations/latest";
@@ -627,6 +700,7 @@ async function fetchAndProcessWeather(city, days, pointsDataCache = null) {
         renderAlerts(alertsData.features.map(f => f.properties));
         // Pass the fresh observation data AND the first hourly forecast period to the render function
         renderCurrentWeather(latestObservationData.properties, firstHourlyPeriod, gridpointData);
+        renderSevenDayPrecipitationChart(correctForecastData);
         renderForecastCards(correctForecastData, days);
         renderDetailsTables();
 
@@ -634,6 +708,7 @@ async function fetchAndProcessWeather(city, days, pointsDataCache = null) {
         console.error("Could not fetch weather data:", error);
         showMessage('Error', 'Failed to fetch weather data. Please check your connection or API key.');
     } finally {
+        document.getElementById('location-name').textContent = city.name.split(',')[0];
         hideLoadingState();
     }
 }
@@ -671,7 +746,7 @@ function handleCitySelection(event) {
         const newUrl = `${window.location.pathname}?location=${zip}`;
         window.history.pushState({ path: newUrl }, '', newUrl);
 
-        fetchAndProcessWeather(selectedCity, 3); // Pass null to force a new points lookup
+        fetchAndProcessWeather(selectedCity, 7); // Pass null to force a new points lookup
 
         // Hide the modal
         document.getElementById('city-selection-modal').classList.add('hidden');
@@ -693,5 +768,5 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('toggle-alerts-btn').textContent = isHidden ? 'Show' : 'Hide';
     });
 
-    fetchAndProcessWeather(initialCity, 3);
+    fetchAndProcessWeather(initialCity, 7);
 });

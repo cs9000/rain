@@ -37,7 +37,7 @@
 <body class="flex items-center justify-center min-h-screen p-4 sm:p-8">
 
     <main class="w-full max-w-4xl p-6 space-y-6 bg-white rounded-3xl shadow-2xl">
-        <header class="text-center space-y-2">
+        <header class="flex justify-between items-baseline">
             <h1 id="location-name" class="text-3xl font-extrabold text-gray-800 cursor-pointer hover:text-blue-600 transition-colors" title="Change location">Wimauma</h1>
             <p id="last-updated" class="text-sm text-gray-500"></p>
         </header>
@@ -92,6 +92,11 @@
                     </div>
                 </div>
             </div>
+        </section>
+
+        <section id="seven-day-precip-chart-container" class="p-6 bg-green-100 border border-green-300 rounded-2xl shadow-inner mb-6 hidden">
+            <h3 class="text-xl font-bold text-gray-800 mb-4">7-Day Precipitation Outlook</h3>
+            <canvas id="seven-day-precip-chart"></canvas>
         </section>
 
         <section id="weather-cards" class="grid grid-cols-1 md:grid-cols-3 gap-6">
