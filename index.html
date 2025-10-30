@@ -14,8 +14,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/weather-icons/2.0.10/css/weather-icons.min.css">
     <style>
         body {
-            font-family: 'Inter', sans-serif;
-            background-color: #0f172a; /* Tailwind's slate-900 */
+            font-family: 'Inter', sans-serif; /* Base font for the app */
         }
         .weather-card {
             transition: all 0.3s ease-in-out;
@@ -34,9 +33,9 @@
         }
     </style>
 </head>
-<body class="flex items-center justify-center min-h-screen p-4 sm:p-8">
+<body class="bg-white sm:bg-slate-900 sm:flex sm:items-center sm:justify-center sm:min-h-screen sm:p-8">
 
-    <main class="w-full max-w-4xl p-6 space-y-6 bg-white rounded-3xl shadow-2xl">
+    <main class="w-full max-w-4xl p-6 space-y-6 bg-white sm:rounded-3xl sm:shadow-2xl">
         <header class="flex justify-between items-baseline gap-4">
             <h1 id="location-name" class="text-3xl font-extrabold text-gray-800 cursor-pointer hover:text-blue-600 transition-colors" title="Change location">Wimauma</h1>
             <p id="last-updated" class="text-sm text-gray-500"></p>
