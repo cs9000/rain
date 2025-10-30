@@ -476,6 +476,11 @@ function renderForecastCards(forecastData, days) {
     }
 
     const colors = ['from-red-200 to-orange-300', 'from-teal-200 to-cyan-300', 'from-purple-200 to-indigo-300'];
+    const borderColors = [
+        'border-orange-400', // Complements the red-to-orange gradient
+        'border-cyan-400',   // Complements the teal-to-cyan gradient
+        'border-purple-500'  // A more distinct purple to complement the gradient
+    ];
 
     // We fetch 7 days of data for the precip chart, but only want to show 3 forecast cards.
     const cardsToRender = forecastData.slice(0, 3);
@@ -510,7 +515,7 @@ function renderForecastCards(forecastData, days) {
         const eveningChance = getPeriodChanceOfRain(day.hour, 18, 23);
 
         const cardHtml = `
-            <div class="relative p-6 rounded-3xl text-gray-900 shadow-xl hover:shadow-2xl cursor-pointer transition-all flex flex-col space-y-4 bg-gradient-to-br ${colors[i]} weather-card" data-day-index="${i}" role="button" tabindex="0" aria-expanded="false">
+            <div class="relative p-6 rounded-3xl text-gray-900 shadow-xl hover:shadow-2xl cursor-pointer transition-all flex flex-col space-y-4 bg-gradient-to-br ${colors[i]} weather-card border ${borderColors[i]}" data-day-index="${i}" role="button" tabindex="0" aria-expanded="false">
                 <div class="flex flex-col items-start">
                     <h2 class="text-3xl font-bold">${dayOfWeek}</h2>
                     <div class="flex items-baseline space-x-2 flex-wrap">
