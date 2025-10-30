@@ -489,15 +489,18 @@ function renderForecastCards(forecastData, days) {
         const date = new Date(day.date + 'T00:00:00');
         const dayOfWeek = date.toLocaleDateString('en-US', { weekday: 'long' });
         
-        const fallbackCondition = { condition: { icon: '', text: 'No data' } };
-        const blankCondition = { condition: { text: '' } }; // For blanking out past periods on the current day
+        // Calculate the full 24-hour precipitation total for the card's header.
+        const totalDailyRain = day.hour.reduce((total, hour) => total + (hour.precip_in || 0), 0);
+
         const morningRainValue = calculateRainfallValue(day.hour, 6, 11);
         const afternoonRainValue = calculateRainfallValue(day.hour, 12, 17);
         const eveningRainValue = calculateRainfallValue(day.hour, 18, 23);
-        const totalDailyRain = morningRainValue + afternoonRainValue + eveningRainValue;
 
         // Find a representative hour for each period.
         const findHour = (targetHour) => day.hour.find(h => getLocalHourFromISO(h.time) === targetHour);
+        
+        const fallbackCondition = { condition: { icon: '', text: 'No data' } };
+        const blankCondition = { condition: { text: '' } }; // For blanking out past periods on the current day
 
         // For morning, try 10 AM. If it's the current day (i=0) and 10 AM is past, use a blank object. Otherwise, use the fallback for future days.
         const morningData = findHour(10) ?? (i === 0 ? blankCondition : fallbackCondition);
