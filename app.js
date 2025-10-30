@@ -260,10 +260,10 @@ function resetUIState() {
 
 function showLoadingState() {
     const locationNameEl = document.getElementById('location-name');
-    const mainElement = document.querySelector('main');
+    const bodyElement = document.body;
 
-    // Temporarily make the main container a flex container to center the spinner
-    mainElement.classList.add('flex', 'flex-col', 'justify-center', 'min-h-[80vh]', 'sm:block', 'sm:min-h-0');
+    // Temporarily add flex centering to the body on mobile to center the main content block
+    bodyElement.classList.add('flex', 'items-center', 'justify-center');
 
     // Update header to show a loading message
     locationNameEl.textContent = 'Please wait...';
@@ -282,10 +282,10 @@ function showLoadingState() {
 
 function hideLoadingState() {
     const loadingSpinner = document.getElementById('loading-spinner');
-    const mainElement = document.querySelector('main');
+    const bodyElement = document.body;
 
-    // Remove the temporary centering classes
-    mainElement.classList.remove('flex', 'flex-col', 'justify-center', 'min-h-[80vh]', 'sm:block', 'sm:min-h-0');
+    // Remove the temporary flex centering from the body
+    bodyElement.classList.remove('flex', 'items-center', 'justify-center');
     if (loadingSpinner) loadingSpinner.remove();
     // Restore clickable styles to the location name
     const locationNameEl = document.getElementById('location-name');
