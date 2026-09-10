@@ -24,13 +24,6 @@
             from { opacity: 0; transform: translateY(20px); }
             to { opacity: 1; transform: translateY(0); }
         }
-        .selected-card {
-            transform: scale(1.05);
-            box-shadow: 0 0 0 3px #3b82f6; /* Blue-500 */
-        }
-        .details-table-day {
-            animation: fadeIn 0.5s ease-in-out;
-        }
     </style>
 </head>
 <body class="bg-slate-900 min-h-screen sm:flex sm:items-center sm:justify-center sm:p-8">
@@ -61,11 +54,11 @@
                     </div>
                     <span id="current-condition-text" class="text-lg text-gray-600 -mt-1">--</span>
                 </div>
-                <div class="col-span-1 flex items-center justify-center">
+                <div class="hidden md:flex md:col-span-1 items-center justify-center">
                     <i id="current-condition-icon" class="text-6xl text-gray-700"></i>
                 </div>
-                <div class="col-span-2 md:col-span-2 grid grid-cols-2 gap-x-8 gap-y-2 text-sm">
-                    <div class="flex justify-between">
+                <div class="col-span-1 md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2 text-sm text-left">
+                    <div class="hidden md:flex justify-between">
                         <span class="font-semibold text-gray-800">Feels Like:</span>
                         <span id="current-feels-like" class="font-normal text-gray-600">--°F</span>
                     </div>
@@ -77,16 +70,16 @@
                         <span class="font-semibold text-gray-800">Wind:</span>
                         <span id="current-wind" class="font-normal text-gray-600">-- mph</span>
                     </div>
-                    <div class="flex justify-between">
+                    <div class="hidden md:flex justify-between">
                         <span class="font-semibold text-gray-800">Dew Point:</span>
                         <span id="current-dew-point" class="font-normal text-gray-600">--°F</span>
                     </div>
-                    <div class="flex justify-between">
+                    <div class="hidden md:flex justify-between">
                         <span class="font-semibold text-gray-800">Wind Gusts:</span>
                         <span id="current-gusts" class="font-normal text-gray-600">-- mph</span>
                     </div>
                     <div class="flex justify-between">
-                        <span class="font-semibold text-gray-800">Chance of Rain:</span>
+                        <span class="font-semibold text-gray-800">Rain:</span>
                         <span id="current-chance-of-rain" class="font-normal text-gray-600">--%</span>
                     </div>
                 </div>
@@ -98,16 +91,13 @@
             <canvas id="seven-day-precip-chart"></canvas>
         </section>
 
-        <section id="weather-cards" class="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div id="loading-spinner" class="col-span-1 md:col-span-3 text-center p-8">
+        <section id="weather-cards" class="space-y-6">
+            <div id="loading-spinner" class="text-center p-8">
                 <div class="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]" role="status">
                     <span class="!absolute !-m-px !h-px !w-px !overflow-hidden !whitespace-nowrap !border-0 !p-0 ![clip:rect(0,0,0,0)]">Loading...</span>
                 </div>
                 <p class="mt-4 text-gray-500">Loading weather data...</p>
             </div>
-        </section>
-
-        <section id="details-table-container" class="mt-8 transition-all duration-500 hidden">
         </section>
 
         <div id="message-box" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden flex items-center justify-center p-4">

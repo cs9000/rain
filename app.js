@@ -1,5 +1,6 @@
 let correctForecastData = null;
 let sevenDayChart = null;
+let dailyCharts = [];
 
 // Predefined list of cities with coordinates. NWS API uses lat/lon.
 const cities = [
@@ -119,143 +120,11 @@ function getPeriodChanceOfRain(hourlyData, startHour, endHour) {
     return maxChance;
 }
 
-function renderDetailsTables() {
-    const container = document.getElementById('details-table-container');
-    container.innerHTML = ''; 
-    
-    if (!correctForecastData || correctForecastData.length === 0) return;
-
-    // We fetch 7 days of data for the precip chart, but only want to show 3 days of details.
-    const detailsToRender = correctForecastData.slice(0, 3);
-
-    const allDaysHtml = detailsToRender.map((day, index) => {
-        const dayOfWeek = new Date(day.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long' });
-
-        return `
-            <div class="mb-8 details-table-day hidden" data-day-index="${index}" data-chart-rendered="false">
-                <div class="flex flex-col sm:flex-row sm:justify-between sm:items-baseline mb-4">
-                    <h3 class="text-xl font-bold text-gray-800 mb-1 sm:mb-0">${dayOfWeek}</h3>
-                    <p class="text-sm text-gray-600">Sunrise: <span class="font-medium">${day.astro.sunrise}</span> | Sunset: <span class="font-medium">${day.astro.sunset}</span></p>
-                </div>
-                <div class="mb-8">
-                    <canvas id="chart-day-${index}"></canvas>
-                </div>
-                <div class="overflow-x-auto">
-                    <table class="w-full text-left bg-white rounded-xl shadow-md">
-                        <thead class="bg-gray-200">
-                            <tr>
-                                <th class="py-3 px-2 sm:px-4 text-sm font-semibold text-gray-600 uppercase tracking-wider text-center sm:text-left rounded-tl-xl">Time</th> 
-                                <th class="py-3 px-2 sm:px-4 text-sm font-semibold text-gray-600 uppercase tracking-wider">Condition</th>
-                                <th class="py-3 px-2 sm:px-4 text-sm font-semibold text-gray-600 uppercase tracking-wider text-center">Rain (%)</th>
-                                <th class="py-3 px-2 sm:px-4 text-sm font-semibold text-gray-600 uppercase tracking-wider text-center rounded-tr-xl precip-amount-header">Rain (in)</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${day.hour.map(hour => `
-                                <tr class="border-t border-gray-200 hover:bg-gray-50 transition-colors">
-                                    <td class="py-3 px-2 sm:px-4 font-medium text-gray-900 text-sm text-center sm:text-left">${new Date(hour.time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</td>
-                                    <td class="py-3 px-2 sm:px-4 text-gray-700 text-sm">${hour.condition.text}</td> 
-                                    <td class="py-3 px-2 sm:px-4 text-gray-700 text-sm text-center">${hour.chance_of_rain ?? 0}</td> 
-                                    <td class="py-3 px-2 sm:px-4 text-gray-700 text-sm text-center precip-amount-cell">${hour.precip_in.toFixed(2)}</td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        `;
-    }).join('');
-
-    container.innerHTML = allDaysHtml;
-}
-
-function handleCardClick(event) {
-    const card = event.currentTarget;
-    const dayIndex = card.dataset.dayIndex;
-    const detailsContainer = document.getElementById('details-table-container');
-    const allDetailsTables = document.querySelectorAll('.details-table-day');
-    
-    // Always deselect all cards first, then select the one that was just clicked.
-    document.querySelectorAll('.weather-card').forEach(c => c.classList.remove('selected-card'));
-    document.querySelectorAll('.weather-card').forEach(c => c.setAttribute('aria-expanded', 'false'));
-    if (card) {
-        card.classList.add('selected-card');
-        card.setAttribute('aria-expanded', 'true');
-    }
-
-    // Ensure the details container and all individual day tables are visible.
-    detailsContainer.classList.remove('hidden'); // Show the main container
-    allDetailsTables.forEach(table => table.classList.remove('hidden')); // Show all individual day details
-
-    // DEFINITIVE FIX: Defer chart rendering until the container is visible.
-    // This prevents Chart.js from rendering into a 0x0 hidden canvas, which causes a layout
-    // shift and incorrect scroll position on the first click.
-    allDetailsTables.forEach((table, index) => {
-        if (table.dataset.chartRendered === 'false') {
-            const day = correctForecastData[index];
-            const ctx = document.getElementById(`chart-day-${index}`).getContext('2d');
-            const labels = day.hour.map(hour => new Date(hour.time).toLocaleTimeString('en-US', { hour: 'numeric' }));
-            const rawPrecipData = day.hour.map(hour => hour.precip_in);
-            const cappedPrecipData = rawPrecipData.map(p => Math.min(p, 0.25));
-            const backgroundColors = rawPrecipData.map(p => {
-                if (p >= 1.0) return 'rgba(190, 24, 93, 0.7)';
-                if (p > 0.3) return 'rgba(239, 68, 68, 0.6)';
-                if (p > 0.1) return 'rgba(245, 158, 11, 0.6)';
-                return 'rgba(59, 130, 246, 0.6)';
-            });
-
-            new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        label: 'Hourly Precipitation (in)',
-                        data: cappedPrecipData,
-                        backgroundColor: backgroundColors,
-                        borderWidth: 0
-                    }]
-                },
-                options: {
-                    plugins: {
-                        animation: { duration: 0 }, // Keep animations off for instant render
-                        legend: { display: false }
-                    },
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            max: 0.25,
-                            title: { display: true, text: 'Precipitation (in)' }
-                        },
-                        x: { grid: { display: false } }
-                    }
-                }
-            });
-            table.dataset.chartRendered = 'true'; // Mark as rendered
-        }
-    });
-
-    // Now that charts are rendered (or were already rendered), we can safely scroll.
-    // A single requestAnimationFrame is sufficient here to ensure the scroll happens
-    // after the DOM is updated from the above logic, just before the next paint.
-    requestAnimationFrame(() => {
-        const selectedDayDetailsTable = document.querySelector(`.details-table-day[data-day-index="${dayIndex}"]`);
-        if (selectedDayDetailsTable) {
-            const headerOffset = 80; 
-            const elementPosition = selectedDayDetailsTable.getBoundingClientRect().top;
-            const offsetPosition = elementPosition + window.scrollY - headerOffset;
-            window.scrollTo({ top: offsetPosition, behavior: "smooth" });
-        }
-    });
-}
-
 function resetUIState() {
-    document.querySelectorAll('.weather-card').forEach(c => {
-        c.classList.remove('selected-card');
-        c.setAttribute('aria-expanded', 'false');
+    dailyCharts.forEach(chart => {
+        if (chart) chart.destroy();
     });
-    const detailsContainer = document.getElementById('details-table-container');
-    detailsContainer.innerHTML = '';
-    detailsContainer.classList.add('hidden');
+    dailyCharts = [];
 }
 
 function showLoadingState() {
@@ -271,7 +140,7 @@ function showLoadingState() {
     document.getElementById('last-updated').textContent = '';
     
     const weatherCardsContainer = document.getElementById('weather-cards');
-    weatherCardsContainer.innerHTML = `<div id="loading-spinner" class="col-span-1 md:col-span-3 text-center p-8"><div class="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]" role="status"><span class="!absolute !-m-px !h-px !w-px !overflow-hidden !whitespace-nowrap !border-0 !p-0 ![clip:rect(0,0,0,0)]">Loading...</span></div><p class="mt-4 text-gray-500">Loading weather data...</p></div>`;
+    weatherCardsContainer.innerHTML = `<div id="loading-spinner" class="text-center p-8"><div class="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]" role="status"><span class="!absolute !-m-px !h-px !w-px !overflow-hidden !whitespace-nowrap !border-0 !p-0 ![clip:rect(0,0,0,0)]">Loading...</span></div><p class="mt-4 text-gray-500">Loading weather data...</p></div>`;
 
     // Hide current weather and details sections
     document.getElementById('weather-alerts').classList.add('hidden');
@@ -348,10 +217,11 @@ function renderCurrentWeather(latestObservation, hourlyPeriod, gridpointData) {
     const iconClass = getWeatherIconClass(latestObservation.textDescription, hourlyPeriod.isDaytime);
     document.getElementById('current-condition-icon').className = `text-6xl text-gray-700 ${iconClass}`;
 
-    // Format and display the "last updated" timestamp from the observation station.
+    // Format and display the "last updated" timestamp from the observation station (e.g. "Thursday 3:45 PM").
     const lastUpdatedDate = new Date(latestObservation.timestamp);
+    const dayOfWeek = lastUpdatedDate.toLocaleDateString('en-US', { weekday: 'long' });
     const formattedTime = lastUpdatedDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-    document.getElementById('last-updated').textContent = `Updated at ${formattedTime}`;
+    document.getElementById('last-updated').textContent = `${dayOfWeek} ${formattedTime}`;
 
     // Find the current hour's data from the more detailed gridpointData for humidity and dewpoint
     // CRITICAL: Convert the start time to a UTC-based timestamp by parsing it and then getting the UTC time.
@@ -477,6 +347,12 @@ function renderForecastCards(forecastData, days) {
     const weatherCardsContainer = document.getElementById('weather-cards');
     weatherCardsContainer.innerHTML = ''; // Clear loading spinner or old cards
 
+    // Destroy existing daily charts before rendering new ones
+    dailyCharts.forEach(c => {
+        if (c) c.destroy();
+    });
+    dailyCharts = [];
+
     if (forecastData.length < days) {
         showMessage('Data Issue', 'Could not retrieve a full three-day forecast. Displaying available data.');
     } else {
@@ -526,7 +402,7 @@ function renderForecastCards(forecastData, days) {
         const eveningChance = getPeriodChanceOfRain(day.hour, 18, 23);
 
         const cardHtml = `
-            <div class="relative p-6 rounded-3xl text-gray-900 shadow-xl hover:shadow-2xl cursor-pointer transition-all flex flex-col space-y-4 bg-gradient-to-br ${colors[i]} weather-card border ${borderColors[i]}" data-day-index="${i}" role="button" tabindex="0" aria-expanded="false">
+            <div class="relative p-6 rounded-3xl text-gray-900 shadow-xl flex flex-col space-y-4 bg-gradient-to-br ${colors[i]} weather-card border ${borderColors[i]}">
                 <div class="flex flex-col items-start">
                     <h2 class="text-3xl font-bold">${dayOfWeek}</h2>
                     <div class="flex items-baseline space-x-2 flex-wrap">
@@ -536,7 +412,7 @@ function renderForecastCards(forecastData, days) {
                     </div>
                 </div>
                 
-                <div class="mt-4 space-y-2">
+                <div class="mt-2 space-y-2">
                     <div class="grid grid-cols-[60px,32px,1fr] items-center gap-2">
                         <span class="text-sm font-bold md:font-normal">Morning</span>
                         <i class="${getWeatherIconClass(morningData.condition.text, true)} text-2xl text-center"></i>
@@ -553,14 +429,68 @@ function renderForecastCards(forecastData, days) {
                         <span class="text-base font-medium md:text-sm md:font-normal">${eveningData.condition.text} ${eveningRain ? `<span class="block sm:inline text-gray-800/60 whitespace-nowrap">💧&nbsp;${eveningChance}% ${eveningRain}</span>` : ''}</span>
                     </div>
                 </div>
+
+                <div class="mt-4 pt-4 border-t border-gray-900/10">
+                    <canvas id="chart-day-${i}"></canvas>
+                </div>
             </div>
         `;
         const tempDiv = document.createElement('div');
         tempDiv.innerHTML = cardHtml.trim();
         const cardElement = tempDiv.firstChild;
-
-        cardElement.addEventListener('click', handleCardClick);
         weatherCardsContainer.appendChild(cardElement);
+
+        const canvas = document.getElementById(`chart-day-${i}`);
+        if (canvas) {
+            const ctx = canvas.getContext('2d');
+            const labels = day.hour.map(hour => new Date(hour.time).toLocaleTimeString('en-US', { hour: 'numeric' }));
+            const rawPrecipData = day.hour.map(hour => hour.precip_in);
+            const cappedPrecipData = rawPrecipData.map(p => Math.min(p, 0.25));
+            const backgroundColors = rawPrecipData.map(p => {
+                if (p >= 1.0) return 'rgba(190, 24, 93, 0.7)';
+                if (p > 0.3) return 'rgba(239, 68, 68, 0.6)';
+                if (p > 0.1) return 'rgba(245, 158, 11, 0.6)';
+                return 'rgba(59, 130, 246, 0.6)';
+            });
+
+            const isMobile = window.innerWidth < 768;
+            const chartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Hourly Precipitation (in)',
+                        data: cappedPrecipData,
+                        backgroundColor: backgroundColors,
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    aspectRatio: isMobile ? 2 : 2.8,
+                    plugins: {
+                        animation: { duration: 0 },
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: (context) => {
+                                    const raw = rawPrecipData[context.dataIndex];
+                                    return ` Precipitation: ${raw.toFixed(2)} in`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 0.25,
+                            title: { display: true, text: 'Precipitation (in)' }
+                        },
+                        x: { grid: { display: false } }
+                    }
+                }
+            });
+            dailyCharts.push(chartInstance);
+        }
     });
 }
 
@@ -721,7 +651,6 @@ async function fetchAndProcessWeather(city, days, pointsDataCache = null) {
         renderCurrentWeather(latestObservationData.properties, firstHourlyPeriod, gridpointData);
         renderSevenDayPrecipitationChart(correctForecastData);
         renderForecastCards(correctForecastData, days);
-        renderDetailsTables();
 
     } catch (error) {
         console.error("Could not fetch weather data:", error);
