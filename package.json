@@ -1,0 +1,14 @@
+{
+  "name": "wimauma-weather",
+  "version": "1.0.0",
+  "description": "Weather forecast and precipitation outlook application",
+  "main": "server.js",
+  "scripts": {
+    "dev": "node server.js",
+    "start": "node server.js",
+    "build": "echo 'Build complete'"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  }
+}
