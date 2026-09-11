@@ -280,11 +280,21 @@ function renderCurrentWeather(latestObservation, hourlyPeriod, gridpointData) {
     currentWeatherSection.classList.remove('hidden');
 }
 
-function renderSevenDayPrecipitationChart(forecastData) {
+function renderSevenDayPrecipitationChart(forecastData, city) {
     const container = document.getElementById('seven-day-precip-chart-container');
     if (!forecastData || forecastData.length === 0) {
         container.classList.add('hidden');
         return;
+    }
+
+    const hurricaneContainer = document.getElementById('hurricane-report-container');
+    if (hurricaneContainer) {
+        const isWimauma = city && (city.name?.toLowerCase().includes('wimauma') || city.zip === '33598');
+        if (isWimauma) {
+            hurricaneContainer.classList.remove('hidden');
+        } else {
+            hurricaneContainer.classList.add('hidden');
+        }
     }
 
     // CRITICAL FIX: Destroy the previous chart instance before creating a new one.
@@ -649,7 +659,7 @@ async function fetchAndProcessWeather(city, days, pointsDataCache = null) {
         renderAlerts(alertsData.features.map(f => f.properties));
         // Pass the fresh observation data AND the first hourly forecast period to the render function
         renderCurrentWeather(latestObservationData.properties, firstHourlyPeriod, gridpointData);
-        renderSevenDayPrecipitationChart(correctForecastData);
+        renderSevenDayPrecipitationChart(correctForecastData, city);
         renderForecastCards(correctForecastData, days);
 
     } catch (error) {
