@@ -205,28 +205,54 @@ function renderCurrentWeather(latestObservation, hourlyPeriod, gridpointData) {
     const currentWeatherSection = document.getElementById('current-weather');
 
     // Use the latest observation for the most accurate "now" data.
-    // The API provides values in metric, so we convert them.
-    const tempF = latestObservation.temperature.value * 9/5 + 32;
-    const dewpointF = latestObservation.dewpoint.value * 9/5 + 32;
-    const windSpeedMph = latestObservation.windSpeed.value * 0.621371;
-    const windGustMph = latestObservation.windGust.value ? latestObservation.windGust.value * 0.621371 : 0;
+    // Safely check if observation has valid temperature, else fall back to hourly forecast.
+    let tempF = null;
+    if (latestObservation?.temperature?.value !== null && latestObservation?.temperature?.value !== undefined) {
+        tempF = latestObservation.temperature.value * 9/5 + 32;
+    } else if (hourlyPeriod?.temperature !== null && hourlyPeriod?.temperature !== undefined) {
+        tempF = hourlyPeriod.temperatureUnit === 'C' ? hourlyPeriod.temperature * 9/5 + 32 : hourlyPeriod.temperature;
+    }
 
-    document.getElementById('current-temp').textContent = Math.round(tempF);
-    document.getElementById('current-condition-text').textContent = latestObservation.textDescription;
+    let dewpointF = null;
+    if (latestObservation?.dewpoint?.value !== null && latestObservation?.dewpoint?.value !== undefined) {
+        dewpointF = latestObservation.dewpoint.value * 9/5 + 32;
+    } else if (hourlyPeriod?.dewpoint?.value !== null && hourlyPeriod?.dewpoint?.value !== undefined) {
+        dewpointF = hourlyPeriod.dewpoint.value * 9/5 + 32;
+    }
+
+    let windSpeedMph = 0;
+    if (latestObservation?.windSpeed?.value !== null && latestObservation?.windSpeed?.value !== undefined) {
+        windSpeedMph = latestObservation.windSpeed.value * 0.621371;
+    } else if (hourlyPeriod?.windSpeed) {
+        const match = hourlyPeriod.windSpeed.match(/\d+/);
+        windSpeedMph = match ? parseInt(match[0], 10) : 0;
+    }
+
+    const windGustMph = latestObservation?.windGust?.value ? latestObservation.windGust.value * 0.621371 : 0;
+
+    document.getElementById('current-temp').textContent = tempF !== null ? Math.round(tempF) : '--';
+    
+    const conditionText = latestObservation?.textDescription || hourlyPeriod?.shortForecast || 'Fair';
+    document.getElementById('current-condition-text').textContent = conditionText;
+
     // Use the hourly forecast's isDaytime property to get the right icon (day/night)
-    const iconClass = getWeatherIconClass(latestObservation.textDescription, hourlyPeriod.isDaytime);
+    const iconClass = getWeatherIconClass(conditionText, hourlyPeriod?.isDaytime ?? true);
     document.getElementById('current-condition-icon').className = `text-6xl text-gray-700 ${iconClass}`;
 
     // Format and display the "last updated" timestamp from the observation station (e.g. "Thursday 3:45 PM").
-    const lastUpdatedDate = new Date(latestObservation.timestamp);
-    const dayOfWeek = lastUpdatedDate.toLocaleDateString('en-US', { weekday: 'long' });
-    const formattedTime = lastUpdatedDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-    document.getElementById('last-updated').textContent = `${dayOfWeek} ${formattedTime}`;
+    if (latestObservation?.timestamp) {
+        const lastUpdatedDate = new Date(latestObservation.timestamp);
+        const dayOfWeek = lastUpdatedDate.toLocaleDateString('en-US', { weekday: 'long' });
+        const formattedTime = lastUpdatedDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+        document.getElementById('last-updated').textContent = `${dayOfWeek} ${formattedTime}`;
+    } else {
+        document.getElementById('last-updated').textContent = 'Current Forecast';
+    }
 
     // Find the current hour's data from the more detailed gridpointData for humidity and dewpoint
     // CRITICAL: Convert the start time to a UTC-based timestamp by parsing it and then getting the UTC time.
     // This avoids timezone mismatches with the gridpoint data, which is in UTC.
-    const currentHourStartMs = new Date(hourlyPeriod.startTime).getTime(); 
+    const currentHourStartMs = hourlyPeriod?.startTime ? new Date(hourlyPeriod.startTime).getTime() : Date.now(); 
 
     // This robustly finds the corresponding value from the gridpoint data arrays (like dewpoint, humidity).
     // It correctly handles the UTC-based time intervals from the gridpoint endpoint.
@@ -248,28 +274,42 @@ function renderCurrentWeather(latestObservation, hourlyPeriod, gridpointData) {
     };
 
     // Use observation data for primary fields, fall back to forecast for others.
-    const windDirectionCardinal = degreesToCardinal(latestObservation.windDirection.value);
-    document.getElementById('current-feels-like').textContent = `${Math.round(latestObservation.heatIndex.value ? latestObservation.heatIndex.value * 9/5 + 32 : tempF)}°F`;
-    document.getElementById('current-wind').textContent = `${Math.round(windSpeedMph)} mph ${windDirectionCardinal}`;
+    let windDirectionCardinal = '';
+    if (latestObservation?.windDirection?.value !== null && latestObservation?.windDirection?.value !== undefined) {
+        windDirectionCardinal = degreesToCardinal(latestObservation.windDirection.value);
+    } else if (hourlyPeriod?.windDirection) {
+        windDirectionCardinal = hourlyPeriod.windDirection;
+    }
+
+    let feelsLikeF = tempF;
+    if (latestObservation?.heatIndex?.value !== null && latestObservation?.heatIndex?.value !== undefined) {
+        feelsLikeF = latestObservation.heatIndex.value * 9/5 + 32;
+    } else if (latestObservation?.windChill?.value !== null && latestObservation?.windChill?.value !== undefined) {
+        feelsLikeF = latestObservation.windChill.value * 9/5 + 32;
+    }
+    document.getElementById('current-feels-like').textContent = feelsLikeF !== null ? `${Math.round(feelsLikeF)}°F` : 'N/A';
+    document.getElementById('current-wind').textContent = `${Math.round(windSpeedMph)} mph ${windDirectionCardinal}`.trim();
     
     // Humidity: Prioritize live observation, but fall back to the hourly forecast grid data if not available.
-    if (latestObservation.relativeHumidity.value) {
+    if (latestObservation?.relativeHumidity?.value !== null && latestObservation?.relativeHumidity?.value !== undefined) {
         document.getElementById('current-humidity').textContent = `${Math.round(latestObservation.relativeHumidity.value)}%`;
+    } else if (hourlyPeriod?.relativeHumidity?.value !== null && hourlyPeriod?.relativeHumidity?.value !== undefined) {
+        document.getElementById('current-humidity').textContent = `${Math.round(hourlyPeriod.relativeHumidity.value)}%`;
     } else {
-        const humidityValue = findCurrentGridValue(gridpointData.properties.relativeHumidity?.values);
+        const humidityValue = findCurrentGridValue(gridpointData?.properties?.relativeHumidity?.values);
         document.getElementById('current-humidity').textContent = humidityValue ? `${Math.round(humidityValue)}%` : 'N/A';
     }
-    document.getElementById('current-dew-point').textContent = `${Math.round(dewpointF)}°F`;
+    document.getElementById('current-dew-point').textContent = dewpointF !== null ? `${Math.round(dewpointF)}°F` : 'N/A';
     
     // Chance of Rain is not in observations, so we get it from the hourly forecast period.
-    document.getElementById('current-chance-of-rain').textContent = `${hourlyPeriod.probabilityOfPrecipitation.value ?? 0}%`;
+    document.getElementById('current-chance-of-rain').textContent = `${hourlyPeriod?.probabilityOfPrecipitation?.value ?? 0}%`;
 
     // Wind Gusts: Prioritize live observation, but fall back to the hourly forecast grid data if not available.
     if (windGustMph > 0) {
         const gustMph = Math.round(windGustMph);
         document.getElementById('current-gusts').textContent = `${gustMph} mph`;
     } else {
-        const currentGustPeriodValue = findCurrentGridValue(gridpointData.properties.windGust?.values);
+        const currentGustPeriodValue = findCurrentGridValue(gridpointData?.properties?.windGust?.values);
         if (currentGustPeriodValue && currentGustPeriodValue > 0) {
             const gustMph = Math.round(currentGustPeriodValue * 0.621371); // Convert from km/h
             document.getElementById('current-gusts').textContent = `${gustMph} mph`;
@@ -646,11 +686,28 @@ async function fetchAndProcessWeather(city, days, pointsDataCache = null) {
 
         document.getElementById('location-name').textContent = city.name.split(',')[0]; // This will be set after loading.
 
-        // Step 3: Get the latest observation from the nearest station
-        const closestStationUrl = stationsData.observationStations[0] + "/observations/latest";
-        const observationResponse = await fetch(closestStationUrl, fetchOptions);
-        if (!observationResponse.ok) throw new Error(`NWS latest observation fetch failed: ${observationResponse.status}`);
-        const latestObservationData = await observationResponse.json();
+        // Step 3: Get the latest observation from the nearest station with active temperature reporting
+        let latestObservationProps = null;
+        if (stationsData.observationStations && stationsData.observationStations.length > 0) {
+            const candidateStations = stationsData.observationStations.slice(0, 5);
+            for (const stationUrl of candidateStations) {
+                try {
+                    const obsResp = await fetch(stationUrl + "/observations/latest", fetchOptions);
+                    if (obsResp.ok) {
+                        const obsData = await obsResp.json();
+                        if (obsData?.properties?.temperature?.value !== null && obsData?.properties?.temperature?.value !== undefined) {
+                            latestObservationProps = obsData.properties;
+                            break;
+                        }
+                        if (!latestObservationProps && obsData?.properties) {
+                            latestObservationProps = obsData.properties;
+                        }
+                    }
+                } catch (err) {
+                    console.warn(`Observation fetch failed for ${stationUrl}:`, err);
+                }
+            }
+        }
 
         // Now we have all the data we need.
         correctForecastData = processNwsData(gridData, gridpointData, hourlyData, days, pointsData);
@@ -658,7 +715,7 @@ async function fetchAndProcessWeather(city, days, pointsDataCache = null) {
 
         renderAlerts(alertsData.features.map(f => f.properties));
         // Pass the fresh observation data AND the first hourly forecast period to the render function
-        renderCurrentWeather(latestObservationData.properties, firstHourlyPeriod, gridpointData);
+        renderCurrentWeather(latestObservationProps, firstHourlyPeriod, gridpointData);
         renderSevenDayPrecipitationChart(correctForecastData, city);
         renderForecastCards(correctForecastData, days);
 
