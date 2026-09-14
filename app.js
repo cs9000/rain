@@ -201,7 +201,7 @@ function renderAlerts(alerts) {
     toggleBtn.textContent = 'Hide';
 }
 
-function renderCurrentWeather(latestObservation, hourlyPeriod, gridpointData) {
+function renderCurrentWeather(latestObservation, hourlyPeriod, gridpointData, forecastData) {
     const currentWeatherSection = document.getElementById('current-weather');
 
     // Use the latest observation for the most accurate "now" data.
@@ -230,7 +230,18 @@ function renderCurrentWeather(latestObservation, hourlyPeriod, gridpointData) {
 
     const windGustMph = latestObservation?.windGust?.value ? latestObservation.windGust.value * 0.621371 : 0;
 
-    document.getElementById('current-temp').textContent = tempF !== null ? Math.round(tempF) : '--';
+    const currentTemp = tempF !== null ? Math.round(tempF) : null;
+    const highTemp = forecastData && forecastData[0]?.day?.maxTemp !== undefined && forecastData[0]?.day?.maxTemp !== -Infinity
+        ? Math.round(forecastData[0].day.maxTemp)
+        : null;
+
+    if (currentTemp !== null && highTemp !== null) {
+        document.getElementById('current-temp').textContent = `${currentTemp}° / ${highTemp}°`;
+    } else if (currentTemp !== null) {
+        document.getElementById('current-temp').textContent = `${currentTemp}°`;
+    } else {
+        document.getElementById('current-temp').textContent = '--';
+    }
     
     const conditionText = latestObservation?.textDescription || hourlyPeriod?.shortForecast || 'Fair';
     document.getElementById('current-condition-text').textContent = conditionText;
@@ -715,7 +726,7 @@ async function fetchAndProcessWeather(city, days, pointsDataCache = null) {
 
         renderAlerts(alertsData.features.map(f => f.properties));
         // Pass the fresh observation data AND the first hourly forecast period to the render function
-        renderCurrentWeather(latestObservationProps, firstHourlyPeriod, gridpointData);
+        renderCurrentWeather(latestObservationProps, firstHourlyPeriod, gridpointData, correctForecastData);
         renderSevenDayPrecipitationChart(correctForecastData, city);
         renderForecastCards(correctForecastData, days);
 
