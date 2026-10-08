@@ -161,6 +161,51 @@ function hideLoadingState() {
     locationNameEl.classList.add('cursor-pointer', 'hover:text-blue-600');
 }
 
+function escapeHtml(str) {
+    if (!str) return '';
+    return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function formatAlertDescription(description) {
+    if (!description) return '';
+    // Normalize line breaks
+    const normalized = description.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
+    // Split into logical blocks separated by blank lines
+    const blocks = normalized.split(/\n\s*\n/);
+    
+    return blocks.map(block => {
+        const lines = block.split('\n').map(l => l.trim()).filter(Boolean);
+        if (lines.length === 0) return '';
+        
+        // Group lines that belong to bullet points or list items while unwrapping artificial hard wraps
+        const subItems = [];
+        let currentItem = '';
+        
+        for (const line of lines) {
+            if (line.startsWith('- ') || line.startsWith('* ')) {
+                if (currentItem) subItems.push(currentItem);
+                currentItem = line;
+            } else {
+                if (currentItem) {
+                    currentItem += ' ' + line;
+                } else {
+                    currentItem = line;
+                }
+            }
+        }
+        if (currentItem) subItems.push(currentItem);
+        
+        return subItems.map(item => {
+            return `<p class="leading-relaxed break-words">${escapeHtml(item)}</p>`;
+        }).join('');
+    }).filter(Boolean).join('');
+}
+
 function renderAlerts(alerts) {
     const alertsSection = document.getElementById('weather-alerts');
     const alertsContent = document.getElementById('alerts-content');
@@ -187,10 +232,10 @@ function renderAlerts(alerts) {
 
         return `
         <div class="p-4 border-l-4 rounded-r-lg shadow-md ${alertClasses}">
-            <p class="font-bold">${alert.headline}</p>
-            <div class="text-sm mt-2" style="white-space: pre-wrap;">${alert.description}</div>
+            <p class="font-bold leading-snug">${escapeHtml(alert.headline || alert.event || 'Weather Alert')}</p>
+            <div class="text-sm mt-3 space-y-3">${formatAlertDescription(alert.description)}</div>
         </div>
-    `
+    `;
     }).join('');
 
     alertsContent.innerHTML = alertsHtml;
