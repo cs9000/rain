@@ -742,26 +742,48 @@ async function fetchAndProcessWeather(city, days, pointsDataCache = null) {
 
         document.getElementById('location-name').textContent = city.name.split(',')[0]; // This will be set after loading.
 
-        // Step 3: Get the latest observation from the nearest station with active temperature reporting
+        // Step 3: Get the latest observation from the nearest station with active and fresh temperature reporting
         let latestObservationProps = null;
-        if (stationsData.observationStations && stationsData.observationStations.length > 0) {
-            const candidateStations = stationsData.observationStations.slice(0, 5);
+        const stationUrls = stationsData.observationStations || stationsData.features?.map(f => f.id) || [];
+        if (stationUrls.length > 0) {
+            const candidateStations = stationUrls.slice(0, 6);
+            const validObservations = [];
+            const FRESH_THRESHOLD_MINUTES = 90; // Preferred freshness: under 90 minutes
+            const ANCIENT_THRESHOLD_MINUTES = 240; // Safety cutoff: older than 4 hours is considered stale
+
             for (const stationUrl of candidateStations) {
                 try {
                     const obsResp = await fetch(stationUrl + "/observations/latest", fetchOptions);
                     if (obsResp.ok) {
                         const obsData = await obsResp.json();
-                        if (obsData?.properties?.temperature?.value !== null && obsData?.properties?.temperature?.value !== undefined) {
-                            latestObservationProps = obsData.properties;
-                            break;
-                        }
-                        if (!latestObservationProps && obsData?.properties) {
-                            latestObservationProps = obsData.properties;
+                        const props = obsData?.properties;
+                        if (props && props.temperature?.value !== null && props.temperature?.value !== undefined && props.timestamp) {
+                            const obsTime = new Date(props.timestamp).getTime();
+                            const ageMinutes = (Date.now() - obsTime) / (1000 * 60);
+
+                            validObservations.push({ props, ageMinutes });
+
+                            // If this station is fresh (under 90 minutes), use it immediately (closest fresh station)
+                            if (ageMinutes <= FRESH_THRESHOLD_MINUTES) {
+                                latestObservationProps = props;
+                                break;
+                            }
                         }
                     }
                 } catch (err) {
                     console.warn(`Observation fetch failed for ${stationUrl}:`, err);
                 }
+            }
+
+            // Fallback: If no candidate was under 90 minutes, pick the freshest among them (unless all are >4 hours)
+            if (!latestObservationProps && validObservations.length > 0) {
+                validObservations.sort((a, b) => a.ageMinutes - b.ageMinutes);
+                const freshest = validObservations[0];
+                if (freshest.ageMinutes <= ANCIENT_THRESHOLD_MINUTES) {
+                    latestObservationProps = freshest.props;
+                }
+                // If even the freshest is >4 hours old, latestObservationProps remains null,
+                // triggering the clean fallback to current hourly forecast data and "Current Forecast" label.
             }
         }
 
